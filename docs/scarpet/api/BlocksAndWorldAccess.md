@@ -157,12 +157,11 @@ Throws `unknown_poi` if the provided point of interest doesn't exist
 ### `set_biome(pos, biome_name, update=true)`
 
 Changes the biome at that block position. if update is specified and false, then chunk will not be refreshed
-on the clients. Biome changes can only be send to clients with the entire data from the chunk.
+on the clients. Biome changes can only be sent to clients with the entire data from the chunk.
 
-Setting a biome is now (as of 1.16) dimension specific. In the overworld and the end changing the biome
-is only effective if you set it at y=0, and affects the entire column of. In the nether - you have to use the
-specific Y coordinate of the biome you want to change, and it affects roughly 4x4x4 area (give or take some random
-noise).
+Be aware that depending on the MC version and dimension settings biome can be set either in a 1x1x256
+column or 4x4x4 hyperblock, so for some versions Y will be ignored and for some precision of biome
+setting is less than 1x1x1 block.
 
 Throws `unknown_biome` if the `biome_name` doesn't exist.
 
@@ -346,19 +345,22 @@ poi(x,y,z,5) => []  // nothing around
 poi(x,y,z,5) => [['nether_portal',0,[7,8,9]],['nether_portal',0,[7,9,9]]] // two portal blocks in the range
 </pre>
 
-### `biome()` `biome(name)` `biome(block)` `biome(block/name, feature)`
+### `biome()` `biome(name)` `biome(block)` `biome(block/name, feature)`, `biome(noise_map)`
 
 Without arguments, returns the list of biomes in the world.
 
-With block, or name, returns the name of the biome in that position, or throws `'unknown_biome'` if provided biome or block are not valid. 
+With block, or name, returns the name of the biome in that position, or throws `'unknown_biome'` if provided biome or block are not valid.
+
+(1.18+) if passed a map of `continentalness`, `depth`, `erosion`, `humidity`, `temperature`, `weirdness`, returns the biome that exists at those noise values.  
+Note: Have to pass all 6 of the mentioned noise types and only these noise types for it to evaluate a biome.
 
 With an optional feature, it returns value for the specified attribute for that biome. Available and queryable features include:
-* `'top_material'`: unlocalized block representing the top surface material
-* `'under_material'`: unlocalized block representing what sits below topsoil
+* `'top_material'`: unlocalized block representing the top surface material (1.17.1 and below only)
+* `'under_material'`: unlocalized block representing what sits below topsoil (1.17.1 and below only)
 * `'category'`: the parent biome this biome is derived from. Possible values include:
 `'none'`, `'taiga'`, `'extreme_hills'`, `'jungle'`, `'mesa'`, `'plains'`, `'savanna'`,
 `'icy'`, `'the_end'`, `'beach'`, `'forest'`, `'ocean'`, `'desert'`, `'river'`,
-`'swamp'`, `'mushroom'` and  `'nether'`.
+`'swamp'`, `'mushroom'` , `'nether'`, `'underground'` (1.18+) and `'mountain'` (1.18+).
 * `'temperature'`: temperature from 0 to 1
 * `'fog_color'`: RGBA color value of fog 
 * `'foliage_color'`: RGBA color value of foliage
@@ -367,11 +369,11 @@ With an optional feature, it returns value for the specified attribute for that 
 * `'water_fog_color'`: RGBA color value of water fog
 * `'humidity'`: value from 0 to 1 indicating how wet is the biome
 * `'precipitation'`: `'rain'` `'snot'`, or `'none'`... ok, maybe `'snow'`, but that means snots for sure as well.
-* `'depth'`: float value indicating how high or low the terrain should generate. Values > 0 indicate generation above sea level
+* `'depth'`: (1.17.1 and below only) float value indicating how high or low the terrain should generate. Values > 0 indicate generation above sea level
 and values < 0, below sea level.
-* `'scale'`: float value indicating how flat is the terrain.
+* `'scale'`: (1.17.1 and below only) float value indicating how flat is the terrain.
 * `'features'`: list of features that generate in the biome, grouped by generation steps
-* `'structures'`: list of structures that generate in the biome.
+* `'structures'`: (1.17.1 and below only) list of structures that generate in the biome.
 
 ### `solid(pos)`
 
@@ -470,7 +472,14 @@ Boolean function, true if the block at position blocks movement.
 Returns the name of sound type made by the block at position. One of:
 
 `'wood'`, `'gravel'`, `'grass'`, `'stone'`, `'metal'`, `'glass'`, `'wool'`, `'sand'`, `'snow'`, 
-`'ladder'`, `'anvil'`, `'slime'`, `'sea_grass'`, `'coral'`
+`'ladder'`, `'anvil'`, `'slime'`, `'sea_grass'`, `'coral'`, `'bamboo'`', `'shoots'`', `'scaffolding'`', `'berry'`', `'crop'`',
+`'stem'`', `'wart'`', 
+`'lantern'`', `'fungi_stem'`', `'nylium'`', `'fungus'`', `'roots'`', `'shroomlight'`', `'weeping_vines'`', `'soul_sand'`',
+ `'soul_soil'`', `'basalt'`', 
+`'wart'`', `'netherrack'`', `'nether_bricks'`', `'nether_sprouts'`', `'nether_ore'`', `'bone'`', `'netherite'`', `'ancient_debris'`',
+`'lodestone'`', `'chain'`', `'nether_gold_ore'`', `'gilded_blackstone'`',
+`'candle'`', `'amethyst'`', `'amethyst_cluster'`', `'small_amethyst_bud'`', `'large_amethyst_bud'`', `'medium_amethyst_bud'`',
+`'tuff'`', `'calcite'`', `'copper'`'
 
 ### `material(pos)`
 
@@ -480,7 +489,7 @@ Returns the name of material of the block at position. very useful to target a g
 `'bubble_column'`, `'lava'`, `'snow_layer'`, `'fire'`, `'redstone_bits'`, `'cobweb'`, `'redstone_lamp'`, `'clay'`, 
 `'dirt'`, `'grass'`, `'packed_ice'`, `'sand'`, `'sponge'`, `'wood'`, `'wool'`, `'tnt'`, `'leaves'`, `'glass'`, 
 `'ice'`, `'cactus'`, `'stone'`, `'iron'`, `'snow'`, `'anvil'`, `'barrier'`, `'piston'`, `'coral'`, `'gourd'`, 
-`'dragon_egg'`, `'cake'`
+`'dragon_egg'`, `'cake'`, `'amethyst'`
 
 ### `map_colour(pos)`
 
@@ -492,7 +501,32 @@ Returns the map colour of a block at position. One of:
 '`, `'diamond'`, `'lapis'`, `'emerald'`, `'obsidian'`, `'netherrack'`, `'white_terracotta'`, `'orange_terracotta'`, 
 `'magenta_terracotta'`, `'light_blue_terracotta'`, `'yellow_terracotta'`, `'lime_terracotta'`, `'pink_terracotta'`, 
 `'gray_terracotta'`, `'light_gray_terracotta'`, `'cyan_terracotta'`, `'purple_terracotta'`, `'blue_terracotta'`, 
-`'brown_terracotta'`, `'green_terracotta'`, `'red_terracotta'`, `'black_terracotta'`
+`'brown_terracotta'`, `'green_terracotta'`, `'red_terracotta'`, `'black_terracotta'`,
+`'crimson_nylium'`, `'crimson_stem'`, `'crimson_hyphae'`, `'warped_nylium'`, `'warped_stem'`, `'warped_hyphae'`, `'warped_wart'`
+
+### `sample_noise(pos, ...type?)` 1.18+ only
+
+ Samples the multi noise value(s) on the given position.  
+If no type is passed, returns a map of `continentalness`, `depth`, `erosion`, `humidity`, `temperature`, `weirdness`.  
+Otherwise, returns the map of that specific noise.
+
+<pre>
+// without type
+sample_noise(pos) => {continentalness: 0.445300012827, erosion: 0.395399987698, temperature: 0.165399998426, ...}
+// passing type as multiple arguments
+sample_noise(pos, 'pillarRareness', 'aquiferBarrier') => {aquiferBarrier: -0.205013844481, pillarRareness: 1.04772473438}
+// passing types as a list with unpacking operator
+sample_noise(pos, ...['spaghetti3dFirst', 'spaghetti3dSecond']) => {spaghetti3dFirst: -0.186052125186, spaghetti3dSecond: 0.211626790923}
+</pre>
+
+Available types:
+
+`aquiferBarrier`, `aquiferFluidLevelFloodedness`, `aquiferFluidLevelSpread`, `aquiferLava`, `caveCheese`,
+`caveEntrance`, `caveLayer`, `continentalness`, `depth`, `erosion`, `humidity`, `island`, `jagged`, `oreGap`,
+`pillar`, `pillarRareness`, `pillarThickness`, `shiftX`, `shiftY`, `shiftZ`, `spaghetti2d`, `spaghetti2dElevation`,
+`spaghetti2dModulator`, `spaghetti2dThickness`, `spaghetti3d`, `spaghetti3dFirst`, `spaghetti3dRarity`,
+`spaghetti3dSecond`, `spaghetti3dThickness`, `spaghettiRoughness`, `spaghettiRoughnessModulator`, `temperature`,
+`terrain`, `terrainFactor`, `terrainOffset`, `terrainPeaks`, `weirdness`
 
 
 ### `loaded(pos)`
@@ -724,7 +758,8 @@ These contain some popular features and structures that are impossible or diffic
 
 ### `structure_eligibility(pos, ?structure, ?size_needed)`
 
-Checks wordgen eligibility for a structure in a given chunk. Requires a `Standard Structure` name (see above).
+Checks wordgen eligibility for a structure in a given chunk. Requires a `Structure Variant` name (see above),
+or `Standard Structure` to check structures of this type.
 If no structure is given, or `null`, then it will check
 for all structures. If bounding box of the structures is also requested, it will compute size of potential
 structures. This function, unlike other in the `structure*` category is not using world data nor accesses chunks
@@ -737,7 +772,7 @@ If structure is specified, it will return `null` if a chunk is not eligible or i
 a map with two values: `'box'` for a pair of coordinates indicating bounding box of the structure, and `'pieces'` for 
 list of elements of the structure (as a tuple), with its name, direction, and box coordinates of the piece.
 
-If structure is not specified, it will return a set of structure names that are eligible, or a map with structures
+If structure is not specified, or a `Standard Structure` was specified, like `'village'`,it will return a set of structure names that are eligible, or a map with structures
 as keys, and same type of map values as with a single structure call. An empty set or an empty map would indicate that nothing
 should be generated there.
 

@@ -1,11 +1,11 @@
 package carpet.helpers;
 
-import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.ItemStack;
 
 public class InventoryHelper
 {
-    // From nbt/Tag.java createTag()
+    // From nbt/NbtElement.java createTag()
     public static final int TAG_END         = 0;
     public static final int TAG_BYTE        = 1;
     public static final int TAG_SHORT       = 2;

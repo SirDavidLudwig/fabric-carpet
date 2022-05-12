@@ -1,6 +1,7 @@
 package carpet.script.argument;
 
 import carpet.CarpetServer;
+import carpet.script.CarpetScriptServer;
 import carpet.script.bundled.Module;
 import carpet.script.exception.InternalExpressionException;
 import carpet.script.exception.ThrowStatement;
@@ -8,18 +9,17 @@ import carpet.script.exception.Throwables;
 import carpet.script.value.MapValue;
 import carpet.script.value.StringValue;
 import carpet.script.value.Value;
-import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.gson.stream.JsonReader;
+import net.minecraft.ReportedException;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.PositionTracker;
 import net.minecraft.nbt.Tag;
-import net.minecraft.nbt.TagReaders;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.crash.CrashException;
+import net.minecraft.nbt.TagTypes;
+import net.minecraft.world.level.storage.LevelResource;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -28,7 +28,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -173,7 +172,7 @@ public class FileArgument
     {
         if (CarpetServer.minecraft_server == null)
             throw new InternalExpressionException("Accessing world files without server running");
-        return CarpetServer.minecraft_server.getSavePath(WorldSavePath.ROOT).resolve("scripts/"+suffix);
+        return CarpetServer.minecraft_server.getWorldPath(LevelResource.ROOT).resolve("scripts/"+suffix);
     }
 
     private Path toPath(Module module)
@@ -193,8 +192,9 @@ public class FileArgument
                     if (!Files.exists(zipPath.getParent())) Files.createDirectories(zipPath.getParent());
                     zfs = FileSystems.newFileSystem(URI.create("jar:"+ zipPath.toUri().toString()), env);
                 }
-                catch (FileSystemNotFoundException | IOException fsnfe)
+                catch (FileSystemNotFoundException | IOException e)
                 {
+                    CarpetScriptServer.LOG.warn("Exception when opening zip file", e);
                     throw new ThrowStatement("Unable to open zip file: "+zipContainer, Throwables.IO_EXCEPTION);
                 }
             }
@@ -295,6 +295,7 @@ public class FileArgument
                     Files.createDirectories(file.getParent()) == null
             ) throw new IOException();
         } catch (IOException e) {
+            CarpetScriptServer.LOG.warn("IOException when creating paths", e);
             throw new ThrowStatement("Unable to create paths for "+file.toString(), Throwables.IO_EXCEPTION);
         }
 
@@ -319,6 +320,7 @@ public class FileArgument
         } }
         catch (IOException e)
         {
+            CarpetScriptServer.LOG.warn("IOException when appending to text file", e);
             throw new ThrowStatement("Error when writing to the file: "+e, Throwables.IO_EXCEPTION);
         }
         finally
@@ -372,16 +374,19 @@ public class FileArgument
                     else
                     {
                         dataInput_1.readUTF();
-                        return TagReaders.of(byte_1).read(dataInput_1, 0, PositionTracker.DEFAULT);
+                        return TagTypes.getType(byte_1).load(dataInput_1, 0, NbtAccounter.UNLIMITED);
                     }
                 }
-                catch (IOException ignored)
+                catch (IOException secondIO)
                 {
+                    CarpetScriptServer.LOG.warn("IOException when trying to read nbt file, something may have gone wrong with the fs", e);
+                    CarpetScriptServer.LOG.warn("", ioException);
+                    CarpetScriptServer.LOG.warn("", secondIO);
                     throw new ThrowStatement("Not a valid NBT tag in "+path.toString(), Throwables.NBT_ERROR);
                 }
             }
         }
-        catch (CrashException e)
+        catch (ReportedException e)
         {
             throw new ThrowStatement("Error when reading NBT file "+path.toString(), Throwables.NBT_ERROR);
         }
@@ -409,7 +414,7 @@ public class FileArgument
         {
             if (!zipped)
             {
-                path = new File(path.toFile().getAbsolutePath() + "_tmp").toPath();
+                path = path.getParent().resolve(path.getFileName() + "_tmp");
                 Files.deleteIfExists(path);
             }
 
@@ -421,8 +426,8 @@ public class FileArgument
             {
                 try (DataOutputStream dataOutputStream_1 = new DataOutputStream(Files.newOutputStream(path)))
                 {
-                    dataOutputStream_1.writeByte(tag_1.getType());
-                    if (tag_1.getType() != 0)
+                    dataOutputStream_1.writeByte(tag_1.getId());
+                    if (tag_1.getId() != 0)
                     {
                         dataOutputStream_1.writeUTF("");
                         tag_1.write(dataOutputStream_1);
@@ -438,6 +443,7 @@ public class FileArgument
         }
         catch (IOException e)
         {
+            CarpetScriptServer.LOG.warn("IO Exception when writing nbt file", e);
             throw new ThrowStatement("Unable to write tag to "+original.toString(), Throwables.IO_EXCEPTION);
         }
     }
@@ -453,6 +459,7 @@ public class FileArgument
         } }
         catch (IOException e)
         {
+            CarpetScriptServer.LOG.warn("IOException when removing file", e);
             throw new ThrowStatement("Error while removing file: "+getDisplayPath(), Throwables.IO_EXCEPTION);
         }
         finally
@@ -488,6 +495,7 @@ public class FileArgument
         }
         catch (IOException e)
         {
+            CarpetScriptServer.LOG.warn("IOException when reading text file", e);
             throw new ThrowStatement("Failed to read text file "+filePath.toString(), Throwables.IO_EXCEPTION);
         }
     }
@@ -514,13 +522,14 @@ public class FileArgument
             Throwable exc = e;
             if(e.getCause() != null)
                 exc = e.getCause();
-            throw new ThrowStatement(MapValue.wrap(ImmutableMap.of(
+            throw new ThrowStatement(MapValue.wrap(Map.of(
                     StringValue.of("error"), StringValue.of(exc.getMessage()),
                     StringValue.of("path"), StringValue.of(filePath.toString())
             )), Throwables.JSON_ERROR);
         }
         catch (IOException e)
         {
+            CarpetScriptServer.LOG.warn("IOException when reading JSON file", e);
             throw new ThrowStatement("Failed to read json file content "+filePath.toString(), Throwables.IO_EXCEPTION);
         }
     }

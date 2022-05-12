@@ -12,7 +12,7 @@ public class BooleanValue extends NumericValue
 
     boolean boolValue;
     private BooleanValue(boolean boolval) {
-        super(boolval);
+        super(boolval ? 1L : 0L);
         boolValue = boolval;
     }
 
@@ -48,7 +48,7 @@ public class BooleanValue extends NumericValue
 
     @Override
     public Tag toTag(boolean force) {
-        return ByteTag.of(boolValue);
+        return ByteTag.valueOf(boolValue);
     }
 
     @Override

@@ -10,7 +10,7 @@ import carpet.script.utils.SimplexNoiseSampler;
 import carpet.script.value.BooleanValue;
 import carpet.script.value.FunctionValue;
 import carpet.script.value.ListValue;
-import carpet.script.value.NullValue;
+import carpet.script.value.MapValue;
 import carpet.script.value.NumericValue;
 import carpet.script.value.StringValue;
 import carpet.script.value.Value;
@@ -51,11 +51,14 @@ public class Sys {
 
         expression.addUnaryFunction("number", v ->
         {
-            if (v instanceof NumericValue)
+            if (v instanceof NumericValue num)
             {
-                NumericValue num = (NumericValue)v;
                 if (num.isInteger()) return new NumericValue(num.getLong());
                 return new NumericValue(num.getDouble());
+            }
+            if (v instanceof ListValue || v instanceof MapValue)
+            {
+                return new NumericValue(v.length());
             }
             try
             {
@@ -237,8 +240,8 @@ public class Sys {
 
             double result;
 
-            if (z instanceof NullValue)
-                if (y instanceof NullValue)
+            if (z.isNull())
+                if (y.isNull())
                     result = sampler.sample1d(NumericValue.asNumber(x).getDouble());
                 else
                     result = sampler.sample2d(NumericValue.asNumber(x).getDouble(), NumericValue.asNumber(y).getDouble());
@@ -275,7 +278,7 @@ public class Sys {
             }
             double result;
 
-            if (z instanceof NullValue)
+            if (z.isNull())
                 result = sampler.sample2d(NumericValue.asNumber(x).getDouble(), NumericValue.asNumber(y).getDouble());
             else
                 result = sampler.sample3d(
@@ -424,7 +427,7 @@ public class Sys {
         });
 
         // lazy cause default expression may not be executed if not needed
-        expression.addLazyFunction("system_variable_get", -1, (c, t, lv) ->
+        expression.addLazyFunction("system_variable_get", (c, t, lv) ->
         {
             if (lv.size() == 0) throw new InternalExpressionException("'system_variable_get' expects at least a key to be fetched");
             Value key = lv.get(0).evalValue(c);

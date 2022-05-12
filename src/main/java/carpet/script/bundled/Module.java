@@ -2,11 +2,10 @@ package carpet.script.bundled;
 
 import carpet.CarpetServer;
 import carpet.script.argument.FileArgument;
-import net.minecraft.nbt.Tag;
-import net.minecraft.util.WorldSavePath;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.level.storage.LevelResource;
 
 public abstract class Module
 {
@@ -33,7 +32,7 @@ public abstract class Module
     private static Path resolveResource(Module module)
     {
         if (module == null || module.getName() == null) return null; // commandline app
-        return CarpetServer.minecraft_server.getSavePath(WorldSavePath.ROOT).resolve("scripts/"+module.getName()+".data.nbt");
+        return CarpetServer.minecraft_server.getWorldPath(LevelResource.ROOT).resolve("scripts/"+module.getName()+".data.nbt");
     }
 
     @Override

@@ -1,71 +1,76 @@
 package carpet.mixins;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-import net.minecraft.world.explosion.Explosion;
-import net.minecraft.world.explosion.ExplosionBehavior;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.ExplosionDamageCalculator;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import static carpet.script.CarpetEventServer.Event.EXPLOSION_OUTCOME;
 
 @Mixin(value = Explosion.class, priority = 990)
 public abstract class Explosion_scarpetEventMixin
 {
-    @Shadow @Final private World world;
+    @Shadow @Final private Level level;
     @Shadow @Final private double x;
     @Shadow @Final private double y;
     @Shadow @Final private double z;
-    @Shadow @Final private float power;
-    @Shadow @Final private boolean createFire;
-    @Shadow @Final private List<BlockPos> affectedBlocks;
-    @Shadow @Final private Explosion.DestructionType destructionType;
-    @Shadow @Final private @Nullable Entity entity;
+    @Shadow @Final private float radius;
+    @Shadow @Final private boolean fire;
+    @Shadow @Final private List<BlockPos> toBlow;
+    @Shadow @Final private Explosion.BlockInteraction blockInteraction;
+    @Shadow @Final private @Nullable Entity source;
 
-    @Shadow /*@Nullable*/ public abstract /*@Nullable*/ LivingEntity getCausingEntity();
+    @Shadow /*@Nullable*/ public abstract /*@Nullable*/ LivingEntity getSourceMob();
+
+    @Shadow public static float getSeenPercent(Vec3 source, Entity entity) {return 0.0f;}
 
     private List<Entity> affectedEntities;
 
-    @Inject(method = "<init>(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;Lnet/minecraft/entity/damage/DamageSource;Lnet/minecraft/world/explosion/ExplosionBehavior;DDDFZLnet/minecraft/world/explosion/Explosion$DestructionType;)V",
+    @Inject(method = "<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lnet/minecraft/world/level/ExplosionDamageCalculator;DDDFZLnet/minecraft/world/level/Explosion$BlockInteraction;)V",
             at = @At(value = "RETURN"))
-    private void onExplosionCreated(World world, Entity entity, DamageSource damageSource, ExplosionBehavior explosionBehavior, double x, double y, double z, float power, boolean createFire, Explosion.DestructionType destructionType, CallbackInfo ci)
+    private void onExplosionCreated(Level world, Entity entity, DamageSource damageSource, ExplosionDamageCalculator explosionBehavior, double x, double y, double z, float power, boolean createFire, Explosion.BlockInteraction destructionType, CallbackInfo ci)
     {
-        if (EXPLOSION_OUTCOME.isNeeded() && !world.isClient())
+        if (EXPLOSION_OUTCOME.isNeeded() && !world.isClientSide())
         {
             affectedEntities = new ArrayList<>();
         }
     }
 
-    @Inject(method = "collectBlocksAndDamageEntities", locals= LocalCapture.CAPTURE_FAILHARD, at=@At(value = "INVOKE", target = "Lnet/minecraft/entity/Entity;damage(Lnet/minecraft/entity/damage/DamageSource;F)Z"))
-    private void onExplosion(CallbackInfo ci, Set<BlockPos> s1, float f1, int i1, int i2, int i3, int i4, int i5, int i6, List<Entity> l1, Vec3d v1, int i7, Entity entity)
+    @Redirect(method = "explode", at=@At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/world/level/Explosion;getSeenPercent(Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/entity/Entity;)F")
+    )
+    private float onExplosion(Vec3 source, Entity entity)
     {
         if (affectedEntities != null)
         {
             affectedEntities.add(entity);
         }
+        return getSeenPercent(source, entity);
     }
 
-    @Inject(method = "affectWorld", at = @At("HEAD"))
+    @Inject(method = "finalizeExplosion", at = @At("HEAD"))
     private void onExplosion(boolean spawnParticles, CallbackInfo ci)
     {
-        if (EXPLOSION_OUTCOME.isNeeded() && !world.isClient())
+        if (EXPLOSION_OUTCOME.isNeeded() && !level.isClientSide())
         {
-            EXPLOSION_OUTCOME.onExplosion((ServerWorld) world, entity, this::getCausingEntity, x, y, z, power, createFire, affectedBlocks, affectedEntities, destructionType);
+            EXPLOSION_OUTCOME.onExplosion((ServerLevel) level, source, this::getSourceMob, x, y, z, radius, fire, toBlow, affectedEntities, blockInteraction);
         }
     }
 }

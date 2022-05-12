@@ -12,8 +12,8 @@ import carpet.script.bundled.BundledModule;
 import carpet.CarpetServer;
 import carpet.script.bundled.FileModule;
 import carpet.script.bundled.Module;
-import carpet.script.exception.IntegrityException;
-import carpet.script.exception.InvalidCallbackException;
+import carpet.script.exception.ExpressionException;
+import carpet.script.exception.LoadException;
 import carpet.script.language.Arithmetic;
 import carpet.script.language.ControlFlow;
 import carpet.script.language.DataStructures;
@@ -23,7 +23,6 @@ import carpet.script.language.Sys;
 import carpet.script.language.Threading;
 import carpet.script.utils.AppStoreManager;
 import carpet.script.value.FunctionValue;
-import carpet.script.value.Value;
 import carpet.utils.CarpetProfiler;
 import carpet.utils.Messenger;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -31,13 +30,12 @@ import com.mojang.brigadier.tree.CommandNode;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.WorldSavePath;
-import net.minecraft.util.math.BlockPos;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.LevelResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.FileVisitOption;
@@ -59,7 +57,7 @@ import java.util.stream.Collectors;
 public class CarpetScriptServer
 {
     //make static for now, but will change that later:
-    public static final Logger LOG = LogManager.getLogger("scarpet");
+    public static final Logger LOG = LoggerFactory.getLogger("Scarpet");
     public final MinecraftServer server;
     public  CarpetScriptHost globalHost;
     public  Map<String, CarpetScriptHost> modules;
@@ -94,7 +92,7 @@ public class CarpetScriptServer
      * @param app The {@link BundledModule} of the app.
      */
     public static void registerSettingsApp(BundledModule app) {
-    	ruleModuleData.add(app);
+        ruleModuleData.add(app);
     }
 
     static
@@ -120,12 +118,12 @@ public class CarpetScriptServer
     private void init()
     {
         ScriptHost.systemGlobals.clear();
-        events = new CarpetEventServer(server);
+        events = new CarpetEventServer(this);
         modules = new HashMap<>();
-        unloadableModules = new HashSet<String>();
+        unloadableModules = new HashSet<>();
         tickStart = 0L;
         stopAll = false;
-        holyMoly = server.getCommandManager().getDispatcher().getRoot().getChildren().stream().map(CommandNode::getName).collect(Collectors.toSet());
+        holyMoly = server.getCommands().getDispatcher().getRoot().getChildren().stream().map(CommandNode::getName).collect(Collectors.toSet());
         globalHost = CarpetScriptHost.create(this, null, false, null, p -> true, false, null);
     }
 
@@ -141,7 +139,7 @@ public class CarpetScriptServer
         {
             for (String moduleName: listAvailableModules(false))
             {
-                addScriptHost(server.getCommandSource(), moduleName, null, true, true, false, null);
+                addScriptHost(server.createCommandSourceStack(), moduleName, null, true, true, false, null);
             }
         }
         CarpetEventServer.Event.START.onTick();
@@ -150,7 +148,7 @@ public class CarpetScriptServer
     public Module getModule(String name, boolean allowLibraries)
     {
         try {
-            Path folder = server.getSavePath(WorldSavePath.ROOT).resolve("scripts");
+            Path folder = server.getWorldPath(LevelResource.ROOT).resolve("scripts");
             if (!Files.exists(folder)) 
                 Files.createDirectories(folder);
             Optional<Path>
@@ -210,7 +208,7 @@ public class CarpetScriptServer
             }
         }
         try {
-            Path worldScripts = server.getSavePath(WorldSavePath.ROOT).resolve("scripts");
+            Path worldScripts = server.getWorldPath(LevelResource.ROOT).resolve("scripts");
             if (!Files.exists(worldScripts)) 
                 Files.createDirectories(worldScripts);
             Files.list(worldScripts)
@@ -232,14 +230,14 @@ public class CarpetScriptServer
         return moduleNames;
     }
 
-    public ScriptHost getHostByName(String name)
+    public CarpetScriptHost getAppHostByName(String name)
     {
         if (name == null)
             return globalHost;
         return modules.get(name);
     }
 
-    public boolean addScriptHost(ServerCommandSource source, String name, Predicate<ServerCommandSource> commandValidator,
+    public boolean addScriptHost(CommandSourceStack source, String name, Predicate<CommandSourceStack> commandValidator,
                                  boolean perPlayer, boolean autoload, boolean isRuleApp, AppStoreManager.StoreNode installer)
     {
         CarpetProfiler.ProfilerToken currentSection = CarpetProfiler.start_section(null, "Scarpet load", CarpetProfiler.TYPE.GENERAL);
@@ -259,10 +257,14 @@ public class CarpetScriptServer
             Messenger.m(source, "r Failed to add "+name+" app");
             return false;
         }
-        CarpetScriptHost newHost = CarpetScriptHost.create(this, module, perPlayer, source, commandValidator, isRuleApp, installer);
-        if (newHost == null)
+        CarpetScriptHost newHost;
+        try
         {
-            Messenger.m(source, "r Failed to add "+name+" app");
+            newHost = CarpetScriptHost.create(this, module, perPlayer, source, commandValidator, isRuleApp, installer);
+        }
+        catch (LoadException e)
+        {
+            Messenger.m(source, "r Failed to add " + name + " app" + (e.getMessage() == null ? "" : ": " + e.getMessage()));
             return false;
         }
         // config needs to be read as we load the app since some events use that info
@@ -310,7 +312,10 @@ public class CarpetScriptServer
         if (newHost.isPerUser())
         {
             // that will provide player hosts right at the startup
-            newHost.retrieveForExecution(source, null);
+            for (ServerPlayer player : source.getServer().getPlayerList().getPlayers())
+            {
+                newHost.retrieveForExecution(player.createCommandSourceStack(), player);
+            }
         }
         else
         {
@@ -330,7 +335,7 @@ public class CarpetScriptServer
     }
 
 
-    public boolean removeScriptHost(ServerCommandSource source, String name, boolean notifySource, boolean isRuleApp)
+    public boolean removeScriptHost(CommandSourceStack source, String name, boolean notifySource, boolean isRuleApp)
     {
         name = name.toLowerCase(Locale.ROOT);
         if (!modules.containsKey(name) || (!isRuleApp && !unloadableModules.contains(name)))
@@ -348,12 +353,12 @@ public class CarpetScriptServer
         return true;
     }
 
-    public boolean uninstallApp(ServerCommandSource source, String name)
+    public boolean uninstallApp(CommandSourceStack source, String name)
     {
         try
         {
             name = name.toLowerCase(Locale.ROOT);
-            Path folder = server.getSavePath(WorldSavePath.ROOT).resolve("scripts/trash");
+            Path folder = server.getWorldPath(LevelResource.ROOT).resolve("scripts/trash");
             if (!Files.exists(folder)) Files.createDirectories(folder);
             if (!Files.exists(folder.getParent().resolve(name+".sc")))
             {
@@ -372,91 +377,11 @@ public class CarpetScriptServer
         return false;
     }
 
-    public boolean runEventCall(ServerCommandSource sender, String hostname, String optionalTarget, FunctionValue udf, List<Value> argv)
-    {
-        CarpetScriptHost host = globalHost;
-        if (hostname != null)
-            host = modules.get(hostname);
-        if (host == null) return false;
-        // dummy call for player apps that reside on the global copy - do not run them, but report as successes.
-        if (host.isPerUser() && optionalTarget==null) return true;
-        ServerPlayerEntity target = null;
-        if (optionalTarget != null)
-        {
-            target = sender.getMinecraftServer().getPlayerManager().getPlayer(optionalTarget);
-            if (target == null) return false;
-        }
-        int successes = signal(sender, target, hostname, udf, argv, true );
-        return successes >= 0;
-    }
-
-    public void runScheduledCall(BlockPos origin, ServerCommandSource source, String hostname, CarpetScriptHost host, FunctionValue udf, List<Value> argv)
-    {
-        if (hostname != null && !modules.containsKey(hostname)) // well - scheduled call app got unloaded
-            return;
-        try
-        {
-            host.callUDF(origin, source, udf, argv);
-        }
-        catch (NullPointerException | InvalidCallbackException ignored)
-        {
-        }
-    }
-
-    /**
-     * returns number of successful calls in the host or -1 if failed exceptionally
-     * @param sender
-     * @param optionalRecipient
-     * @param hostname
-     * @param udf
-     * @param argv
-     * @param reportFails - returns -1 when any call failed
-     * @return
-     */
-    public int signal(ServerCommandSource sender, ServerPlayerEntity optionalRecipient, String hostname, FunctionValue udf, List<Value> argv, boolean reportFails)
-    {
-
-        if (hostname == null)
-        {
-            if (optionalRecipient != null) return 0;
-            try
-            {
-                globalHost.callUDF(BlockPos.ORIGIN, sender, udf, argv);
-            }
-            catch (NullPointerException | InvalidCallbackException npe)
-            {
-                return reportFails?-1:0;
-            }
-            return 1;
-        }
-        String hostRecipient = optionalRecipient == null?null:optionalRecipient.getEntityName();
-        ServerCommandSource source = (optionalRecipient == null)? sender : optionalRecipient.getCommandSource().withLevel(CarpetSettings.runPermissionLevel);
-        int successes = 0;
-        for (CarpetScriptHost host : modules.get(hostname).retrieveForExecution(sender, hostRecipient))
-        {
-            // getPlayer will always return nonnull cause retrieve for execution only returns hosts for existing players.
-            ServerCommandSource executingSource = host.perUser
-                    ? source.getMinecraftServer().getPlayerManager().getPlayer(host.user).getCommandSource()
-                    : source.getMinecraftServer().getCommandSource();
-            try
-            {
-                host.callUDF(BlockPos.ORIGIN, source.withLevel(CarpetSettings.runPermissionLevel), udf, argv);
-            }
-            catch (NullPointerException | InvalidCallbackException | IntegrityException npe)
-            {
-                if (reportFails) return -1;
-                continue;
-            }
-            successes ++;
-        }
-        return successes;
-    }
-
     public void tick()
     {
         CarpetProfiler.ProfilerToken token;
         token = CarpetProfiler.start_section(null, "Scarpet schedule", CarpetProfiler.TYPE.GENERAL);
-        events.tick();
+        events.handleEvents.getWhileDisabled( () -> {events.tick(); return null;});
         CarpetProfiler.end_current_section(token);
         token = CarpetProfiler.start_section(null, "Scarpet app data", CarpetProfiler.TYPE.GENERAL);
         for (CarpetScriptHost host : modules.values())
@@ -476,7 +401,7 @@ public class CarpetScriptServer
         }
     }
 
-    public void onPlayerJoin(ServerPlayerEntity player)
+    public void onPlayerJoin(ServerPlayer player)
     {
         modules.values().forEach(h ->
         {
@@ -484,7 +409,7 @@ public class CarpetScriptServer
             {
                 try
                 {
-                    h.retrieveOwnForExecution(player.getCommandSource());
+                    h.retrieveOwnForExecution(player.createCommandSourceStack());
                 }
                 catch (CommandSyntaxException ignored)
                 {
@@ -493,16 +418,11 @@ public class CarpetScriptServer
         });
     }
 
-    static class TransferData
+    private static record TransferData(boolean perUser, Predicate<CommandSourceStack> commandValidator, boolean isRuleApp)
     {
-        boolean perUser;
-        Predicate<ServerCommandSource> commandValidator;
-        boolean isRuleApp;
         private TransferData(CarpetScriptHost host)
         {
-            perUser = host.perUser;
-            commandValidator = host.commandValidator;
-            isRuleApp = host.isRuleApp;
+            this(host.perUser, host.commandValidator, host.isRuleApp);
         }
     }
 
@@ -510,10 +430,10 @@ public class CarpetScriptServer
     {
         Map<String, TransferData> apps = new HashMap<>();
         modules.forEach((s, h) -> apps.put(s, new TransferData(h)));
-        apps.keySet().forEach(s -> removeScriptHost(server.getCommandSource(), s, false, false));
+        apps.keySet().forEach(s -> removeScriptHost(server.createCommandSourceStack(), s, false, false));
         CarpetEventServer.Event.clearAllBuiltinEvents();
         init();
-        apps.forEach((s, data) -> addScriptHost(server.getCommandSource(), s,data.commandValidator, data.perUser,false, data.isRuleApp, null));
+        apps.forEach((s, data) -> addScriptHost(server.createCommandSourceStack(), s,data.commandValidator, data.perUser,false, data.isRuleApp, null));
     }
 
     public void reAddCommands()
@@ -523,6 +443,7 @@ public class CarpetScriptServer
     
     public static void parseFunctionClasses()
     {
+        ExpressionException.prepareForDoom(); // see fc-#1172
         // Language
         AnnotationParser.parseFunctionClass(Arithmetic.class);
         AnnotationParser.parseFunctionClass(ControlFlow.class);

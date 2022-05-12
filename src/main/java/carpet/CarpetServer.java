@@ -1,6 +1,5 @@
 package carpet;
 
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -33,30 +32,24 @@ import com.mojang.brigadier.CommandDispatcher;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.commands.PerfCommand;
+import net.minecraft.server.level.ServerPlayer;
 
-public class CarpetServer implements ClientModInitializer,DedicatedServerModInitializer // static for now - easier to handle all around the code, its one anyways
+public class CarpetServer // static for now - easier to handle all around the code, its one anyways
 {
+    public static final ClientModInitializer CLIENT_INITIALIZER = CarpetServer::onGameStarted;
+    public static final DedicatedServerModInitializer SERVER_INITIALIZER = CarpetServer::onGameStarted;
+
     public static final Random rand = new Random();
     public static MinecraftServer minecraft_server;
-    private static CommandDispatcher<ServerCommandSource> currentCommandDispatcher;
+    private static CommandDispatcher<CommandSourceStack> currentCommandDispatcher;
     public static CarpetScriptServer scriptServer;
     public static SettingsManager settingsManager;
     public static final List<CarpetExtension> extensions = new ArrayList<>();
 
-    @Override
-    public void onInitializeClient()
-    {
-    	CarpetServer.onGameStarted();
-    }
-    @Override
-    public void onInitializeServer()
-    {
-    	CarpetServer.onGameStarted();
-    }
-    
     // Separate from onServerLoaded, because a server can be loaded multiple times in singleplayer
     /**
      * Registers a {@link CarpetExtension} to be managed by Carpet.<br>
@@ -73,6 +66,8 @@ public class CarpetServer implements ClientModInitializer,DedicatedServerModInit
         if (currentCommandDispatcher != null)
         {
             extension.registerCommands(currentCommandDispatcher);
+            CarpetSettings.LOG.warn(extension.getClass().getSimpleName() + " extension registered too late!");
+            CarpetSettings.LOG.warn("This won't be supported in later Carpet versions and may crash the game!");
         }
     }
 
@@ -122,8 +117,16 @@ public class CarpetServer implements ClientModInitializer,DedicatedServerModInit
         extensions.forEach(e -> e.onTick(server));
     }
 
-    public static void registerCarpetCommands(CommandDispatcher<ServerCommandSource> dispatcher)
+    @Deprecated
+    public static void registerCarpetCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
+    }
+
+    public static void registerCarpetCommands(CommandDispatcher<CommandSourceStack> dispatcher, Commands.CommandSelection environment)
     {
+        if (settingsManager == null) // bootstrap dev initialization check
+        {
+            return;
+        }
         settingsManager.registerCommand(dispatcher);
         extensions.forEach(e -> {
             SettingsManager sm = e.customSettingsManager();
@@ -146,13 +149,16 @@ public class CarpetServer implements ClientModInitializer,DedicatedServerModInit
         // for all other, they will have them registered when they add themselves
         extensions.forEach(e -> e.registerCommands(dispatcher));
         currentCommandDispatcher = dispatcher;
+
+        if (environment != Commands.CommandSelection.DEDICATED)
+            PerfCommand.register(dispatcher);
         
         if (FabricLoader.getInstance().isDevelopmentEnvironment())
             TestCommand.register(dispatcher);
         // todo 1.16 - re-registerer apps if that's a reload operation.
     }
 
-    public static void onPlayerLoggedIn(ServerPlayerEntity player)
+    public static void onPlayerLoggedIn(ServerPlayer player)
     {
         ServerNetworkHandler.onPlayerJoin(player);
         LoggerRegistry.playerConnected(player);
@@ -161,7 +167,7 @@ public class CarpetServer implements ClientModInitializer,DedicatedServerModInit
 
     }
 
-    public static void onPlayerLoggedOut(ServerPlayerEntity player)
+    public static void onPlayerLoggedOut(ServerPlayer player)
     {
         ServerNetworkHandler.onPlayerLoggedOut(player);
         LoggerRegistry.playerDisconnected(player);

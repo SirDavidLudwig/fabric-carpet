@@ -1,15 +1,18 @@
 package carpet.mixins;
 
 import carpet.helpers.TickSpeed;
+import carpet.patches.CopyProfilerResult;
 import carpet.utils.CarpetProfiler;
+import net.minecraft.Util;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.ServerTask;
-import net.minecraft.util.TickDurationMonitor;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Util;
-import net.minecraft.util.profiler.Profiler;
-import net.minecraft.util.thread.ReentrantThreadExecutor;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.server.TickTask;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.profiling.EmptyProfileResults;
+import net.minecraft.util.profiling.ProfileResults;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.util.thread.ReentrantBlockableEventLoop;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -17,43 +20,49 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.function.BooleanSupplier;
 
 @Mixin(MinecraftServer.class)
-public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExecutor<ServerTask>
+public abstract class MinecraftServer_tickspeedMixin extends ReentrantBlockableEventLoop<TickTask>
 {
     @Shadow private volatile boolean running;
 
-    @Shadow private long timeReference;
+    @Shadow private long nextTickTime;
 
     @Shadow @Final private static Logger LOGGER;
 
-    @Shadow private Profiler profiler;
+    @Shadow private ProfilerFiller profiler;
 
     public MinecraftServer_tickspeedMixin(String name)
     {
         super(name);
     }
 
-    @Shadow protected abstract void tick(BooleanSupplier booleanSupplier_1);
+    @Shadow protected abstract void tickServer(BooleanSupplier booleanSupplier_1);
 
-    @Shadow protected abstract boolean shouldKeepTicking();
+    @Shadow protected abstract boolean haveTime();
 
-    @Shadow private long field_19248;
+    @Shadow private long delayedTasksMaxNextTickTime;
 
-    @Shadow protected abstract void method_16208();
+    @Shadow private volatile boolean isReady;
 
-    @Shadow private volatile boolean loading;
+    @Shadow private long lastOverloadWarning;
 
-    @Shadow protected abstract void startMonitor(TickDurationMonitor monitor);
+    @Shadow private boolean mayHaveDelayedTasks;
 
-    @Shadow private long lastTimeReference;
+    @Shadow public abstract Iterable<ServerLevel> getAllLevels();
 
-    @Shadow private boolean waitingForNextTick;
+    @Shadow private int tickCount;
 
-    @Shadow public abstract Iterable<ServerWorld> getWorlds();
+    @Shadow protected abstract void waitUntilNextTick();
 
+    @Shadow protected abstract void startMetricsRecordingTick();
+
+    @Shadow protected abstract void endMetricsRecordingTick();
+
+    @Shadow private boolean debugCommandProfilerDelayStart;
     CarpetProfiler.ProfilerToken currentSection;
 
     private float carpetMsptAccum = 0.0f;
@@ -73,7 +82,7 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
     // could possibly just inject that mspt selection at the beginning of the loop, but then adding all mspt's to
     // replace 50L will be a hassle
     @Inject(method = "runServer", at = @At(value = "INVOKE", shift = At.Shift.AFTER,
-            target = "Lnet/minecraft/server/MinecraftServer;setFavicon(Lnet/minecraft/server/ServerMetadata;)V"))
+            target = "Lnet/minecraft/server/MinecraftServer;updateStatusIcon(Lnet/minecraft/network/protocol/status/ServerStatus;)V"))
     private void modifiedRunLoop(CallbackInfo ci)
     {
         while (this.running)
@@ -89,7 +98,7 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
             if (TickSpeed.time_warp_start_time != 0 && TickSpeed.continueWarp())
             {
                 //making sure server won't flop after the warp or if the warp is interrupted
-                this.timeReference = this.lastTimeReference = Util.getMeasuringTimeMs();
+                this.nextTickTime = this.lastOverloadWarning = Util.getMillis();
                 carpetMsptAccum = TickSpeed.mspt;
             }
             else
@@ -103,48 +112,76 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
                 msThisTick = (long)carpetMsptAccum; // regular tick
                 carpetMsptAccum += TickSpeed.mspt - msThisTick;
 
-                long_1 = Util.getMeasuringTimeMs() - this.timeReference;
+                long_1 = Util.getMillis() - this.nextTickTime;
             }
             //end tick deciding
             //smoothed out delay to include mcpt component. With 50L gives defaults.
-            if (long_1 > /*2000L*/1000L+20*TickSpeed.mspt && this.timeReference - this.lastTimeReference >= /*15000L*/10000L+100*TickSpeed.mspt)
+            if (long_1 > /*2000L*/1000L+20*TickSpeed.mspt && this.nextTickTime - this.lastOverloadWarning >= /*15000L*/10000L+100*TickSpeed.mspt)
             {
                 long long_2 = (long)(long_1 / TickSpeed.mspt);//50L;
                 LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", long_1, long_2);
-                this.timeReference += (long)(long_2 * TickSpeed.mspt);//50L;
-                this.lastTimeReference = this.timeReference;
+                this.nextTickTime += (long)(long_2 * TickSpeed.mspt);//50L;
+                this.lastOverloadWarning = this.nextTickTime;
             }
 
-            this.timeReference += msThisTick;//50L;
-            TickDurationMonitor tickDurationMonitor = TickDurationMonitor.create("Server");
-            this.startMonitor(tickDurationMonitor);
-            this.profiler.startTick();
+            if (this.debugCommandProfilerDelayStart) {
+                this.debugCommandProfilerDelayStart = false;
+                this.profilerTimings = Pair.of(Util.getNanos(), tickCount);
+                //this.field_33978 = new MinecraftServer.class_6414(Util.getMeasuringTimeNano(), this.ticks);
+            }
+            this.nextTickTime += msThisTick;//50L;
+            //TickDurationMonitor tickDurationMonitor = TickDurationMonitor.create("Server");
+            //this.startMonitor(tickDurationMonitor);
+            this.startMetricsRecordingTick();
             this.profiler.push("tick");
-            this.tick(TickSpeed.time_warp_start_time != 0 ? ()->true : this::shouldKeepTicking);
-            this.profiler.swap("nextTickWait");
+            this.tickServer(TickSpeed.time_warp_start_time != 0 ? ()->true : this::haveTime);
+            this.profiler.popPush("nextTickWait");
             if (TickSpeed.time_warp_start_time != 0) // clearing all hanging tasks no matter what when warping
             {
                 while(this.runEveryTask()) {Thread.yield();}
             }
-            this.waitingForNextTick = true;
-            this.field_19248 = Math.max(Util.getMeasuringTimeMs() + /*50L*/ msThisTick, this.timeReference);
+            this.mayHaveDelayedTasks = true;
+            this.delayedTasksMaxNextTickTime = Math.max(Util.getMillis() + /*50L*/ msThisTick, this.nextTickTime);
             // run all tasks (this will not do a lot when warping), but that's fine since we already run them
-            this.method_16208();
+            this.waitUntilNextTick();
             this.profiler.pop();
-            this.profiler.endTick();
-            this.loading = true;
+            this.endMetricsRecordingTick();
+            this.isReady = true;
         }
 
     }
 
+    // just because profilerTimings class is public
+    Pair<Long,Integer> profilerTimings = null;
+    /// overworld around profiler timings
+    @Inject(method = "isTimeProfilerRunning", at = @At("HEAD"), cancellable = true)
+    public void isCMDebugRunning(CallbackInfoReturnable<Boolean> cir)
+    {
+        cir.setReturnValue(debugCommandProfilerDelayStart || profilerTimings != null);
+    }
+    @Inject(method = "stopTimeProfiler", at = @At("HEAD"), cancellable = true)
+    public void stopCMDebug(CallbackInfoReturnable<ProfileResults> cir)
+    {
+        if (this.profilerTimings == null) {
+            cir.setReturnValue(EmptyProfileResults.EMPTY);
+        } else {
+            ProfileResults profileResult = new CopyProfilerResult(
+                    profilerTimings.getRight(), profilerTimings.getLeft(),
+                    this.tickCount, Util.getNanos()
+            );
+            this.profilerTimings = null;
+            cir.setReturnValue(profileResult);
+        }
+    }
+
 
     private boolean runEveryTask() {
-        if (super.runTask()) {
+        if (super.pollTask()) {
             return true;
         } else {
             if (true) { // unconditionally this time
-                for(ServerWorld serverlevel : getWorlds()) {
-                    if (serverlevel.getChunkManager().executeQueuedTasks()) {
+                for(ServerLevel serverlevel : getAllLevels()) {
+                    if (serverlevel.getChunkSource().pollTask()) {
                         return true;
                     }
                 }
@@ -154,9 +191,9 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
         }
     }
 
-    @Inject(method = "tick", at = @At(
+    @Inject(method = "tickServer", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/PlayerManager;saveAllPlayerData()V",
+            target = "Lnet/minecraft/server/MinecraftServer;saveEverything(ZZZ)Z", // save
             shift = At.Shift.BEFORE
     ))
     private void startAutosave(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
@@ -164,9 +201,9 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
         currentSection = CarpetProfiler.start_section(null, "Autosave", CarpetProfiler.TYPE.GENERAL);
     }
 
-    @Inject(method = "tick", at = @At(
+    @Inject(method = "tickServer", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/MinecraftServer;save(ZZZ)Z",
+            target = "Lnet/minecraft/server/MinecraftServer;saveEverything(ZZZ)Z",
             shift = At.Shift.AFTER
     ))
     private void finishAutosave(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
@@ -174,9 +211,9 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
         CarpetProfiler.end_current_section(currentSection);
     }
 
-    @Inject(method = "tickWorlds", at = @At(
+    @Inject(method = "tickChildren", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/MinecraftServer;getNetworkIo()Lnet/minecraft/server/ServerNetworkIo;",
+            target = "Lnet/minecraft/server/MinecraftServer;getConnection()Lnet/minecraft/server/network/ServerConnectionListener;",
             shift = At.Shift.BEFORE
     ))
     private void startNetwork(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
@@ -184,9 +221,9 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
         currentSection = CarpetProfiler.start_section(null, "Network", CarpetProfiler.TYPE.GENERAL);
     }
 
-    @Inject(method = "tickWorlds", at = @At(
+    @Inject(method = "tickChildren", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/PlayerManager;updatePlayerLatency()V",
+            target = "Lnet/minecraft/server/players/PlayerList;tick()V",
             shift = At.Shift.AFTER
     ))
     private void finishNetwork(BooleanSupplier booleanSupplier_1, CallbackInfo ci)
@@ -194,14 +231,14 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantThreadExec
         CarpetProfiler.end_current_section(currentSection);
     }
 
-    @Inject(method = "method_16208", at = @At("HEAD"))
+    @Inject(method = "waitUntilNextTick", at = @At("HEAD"))
     private void startAsync(CallbackInfo ci)
     {
         currentSection = CarpetProfiler.start_section(null, "Async Tasks", CarpetProfiler.TYPE.GENERAL);
     }
-    @Inject(method = "method_16208", at = @At(
+    @Inject(method = "waitUntilNextTick", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/MinecraftServer;runTasks(Ljava/util/function/BooleanSupplier;)V",
+            target = "Lnet/minecraft/server/MinecraftServer;managedBlock(Ljava/util/function/BooleanSupplier;)V",
             shift = At.Shift.BEFORE
     ))
     private void stopAsync(CallbackInfo ci)

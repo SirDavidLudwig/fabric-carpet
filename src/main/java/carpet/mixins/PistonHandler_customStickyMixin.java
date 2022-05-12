@@ -1,17 +1,6 @@
 package carpet.mixins;
 
 import carpet.CarpetSettings;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ChainBlock;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.EndRodBlock;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.block.piston.PistonHandler;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -22,8 +11,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChainBlock;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.EndRodBlock;
+import net.minecraft.world.level.block.piston.PistonStructureResolver;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 
-@Mixin(PistonHandler.class)
+@Mixin(PistonStructureResolver.class)
 public abstract class PistonHandler_customStickyMixin
 {
     /*
@@ -36,24 +36,22 @@ public abstract class PistonHandler_customStickyMixin
      *
      * These also support other custom sticky block with non-standard rules, like chains.
      */
-    @Shadow @Final private World world;
-    @Shadow @Final private Direction motionDirection;
-    @Shadow protected abstract boolean tryMove(BlockPos blockPos_1, Direction direction_1);
-    @Shadow private static boolean isBlockSticky(Block block_1) { return false; }
-    @Shadow private static boolean isAdjacentBlockStuck(Block block, Block block2) {return false;}
-    @Shadow protected abstract boolean canMoveAdjacentBlock(BlockPos pos);
+    @Shadow @Final private Level level;
+    @Shadow @Final private Direction pushDirection;
+    @Shadow protected abstract boolean addBlockLine(BlockPos blockPos_1, Direction direction_1);
+    @Shadow private static boolean isSticky(BlockState block_1) { return false; }
+    @Shadow private static boolean canStickToEachOther(BlockState block, BlockState block2) {return false;}
+    @Shadow protected abstract boolean addBranchingBlocks(BlockPos pos);
 
     // collects information about sticking block when backtracking.
     private BlockPos currentPos;
     private BlockState currentState;
-    private BlockState previousState;
-    @Redirect(method = "tryMove", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;getBlockState(Lnet/minecraft/util/math/BlockPos;)Lnet/minecraft/block/BlockState;", ordinal = 0))
-    private BlockState redirectGetBlockState_1_A(World world, BlockPos pos) {
-        return currentState = previousState = world.getBlockState(pos);
+    @Redirect(method = "addBlockLine", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;", ordinal = 0))
+    private BlockState redirectGetBlockState_1_A(Level world, BlockPos pos) {
+        return currentState = world.getBlockState(pos);
     }
-    @Redirect(method = "tryMove", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;getBlockState(Lnet/minecraft/util/math/BlockPos;)Lnet/minecraft/block/BlockState;", ordinal = 1))
-    private BlockState redirectGetBlockState_1_B(World world, BlockPos pos) {
-        previousState = currentState;
+    @Redirect(method = "addBlockLine", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;", ordinal = 1))
+    private BlockState redirectGetBlockState_1_B(Level world, BlockPos pos) {
         currentPos = pos;
         return currentState = world.getBlockState(pos);
     }
@@ -62,15 +60,15 @@ public abstract class PistonHandler_customStickyMixin
      * Makes backwards stickiness work with sticky non-slimeblocks as well (chests, chains).
      * @author 2No2Name, gnembon
      */
-    @Redirect(method = "tryMove", at = @At(
+    @Redirect(method = "addBlockLine", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/block/piston/PistonHandler;isBlockSticky(Lnet/minecraft/block/Block;)Z",
+            target = "Lnet/minecraft/world/level/block/piston/PistonStructureResolver;isSticky(Lnet/minecraft/world/level/block/state/BlockState;)Z",
             ordinal = 0 )
     )
-    private boolean redirectIsStickyBlock(Block block_1)
+    private boolean redirectIsStickyBlock(BlockState blockState)
     {
         // applies to both MBE chests as well as sticky chains
-        return blockCanBePulled(currentState) || isBlockSticky(block_1);
+        return blockCanBePulled(blockState) || isSticky(blockState);
     }
 
     /**
@@ -85,14 +83,14 @@ public abstract class PistonHandler_customStickyMixin
             Block block = blockState.getBlock();
             if (block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST)
                 //Make chests be sticky on the side to
-                return getDirectionToOtherChestHalf(blockState) == motionDirection.getOpposite();
+                return getDirectionToOtherChestHalf(blockState) == pushDirection.getOpposite();
             //example how you could make sticky pistons have a sticky side:
             //if(block == Blocks.STICKY_PISTON)
             //    return blockState.get(FacingBlock.FACING) == motionDirection;
         }
         if (CarpetSettings.doChainStone && blockState.getBlock() == Blocks.CHAIN)
         {
-            return isChainOnAxis(currentState, motionDirection);
+            return isChainOnAxis(currentState, pushDirection);
         }
 
 
@@ -105,26 +103,26 @@ public abstract class PistonHandler_customStickyMixin
      * @param next: canidate block to decide if needs to be dragged along as well.
      * @return true if we should keep dragging blocks behind
      */
-    @Redirect(method = "tryMove", at = @At(
+    @Redirect(method = "addBlockLine", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/block/piston/PistonHandler;isAdjacentBlockStuck(Lnet/minecraft/block/Block;Lnet/minecraft/block/Block;)Z")
+            target = "Lnet/minecraft/world/level/block/piston/PistonStructureResolver;canStickToEachOther(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)Z")
     )
-    private boolean isDraggingPreviousBlockBehind(Block previous, Block next)
+    private boolean isDraggingPreviousBlockBehind(BlockState previous, BlockState next)
     {
         if (CarpetSettings.doChainStone)
         {
-            if (previousState.getBlock() == Blocks.CHAIN && isChainOnAxis(previousState, motionDirection))
+            if (previous.getBlock() == Blocks.CHAIN && isChainOnAxis(previous, pushDirection))
             {
-                if ( (currentState.getBlock() == Blocks.CHAIN && isChainOnAxis(currentState, motionDirection))
+                if ( (next.getBlock() == Blocks.CHAIN && isChainOnAxis(next, pushDirection))
                         || CarpetSettings.chainStoneStickToAll
-                        || isEndRodOnAxis(currentState, motionDirection.getAxis())
-                        || Block.sideCoversSmallSquare(world, currentPos, motionDirection))
+                        || isEndRodOnAxis(next, pushDirection.getAxis())
+                        || Block.canSupportCenter(level, currentPos, pushDirection))
                 {
                     return true;
                 }
             }
         }
-        return isAdjacentBlockStuck(previous, next);
+        return canStickToEachOther(previous, next);
     }
 
 
@@ -133,12 +131,12 @@ public abstract class PistonHandler_customStickyMixin
      * This runs in U style structures with something in the middle on retraction.
      * @author 2No2Name
      */
-    @Inject(method = "tryMove", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at = @At(
+    @Inject(method = "addBlockLine", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at = @At(
             value = "INVOKE",
             target = "Ljava/util/List;get(I)Ljava/lang/Object;",
             shift = At.Shift.AFTER
     ))
-    private void stickToStickySide(BlockPos blockPos_1, Direction direction_1, CallbackInfoReturnable<Boolean> cir, BlockState blockState_1, Block block_1, int int_1, int int_2, int int_4, BlockPos blockPos_3, int int_5, int int_6)
+    private void stickToStickySide(BlockPos blockPos_1, Direction direction_1, CallbackInfoReturnable<Boolean> cir, BlockState blockState_1, int int_1, int int_2, int int_4, BlockPos blockPos_3, int int_5, int int_6)
     {
         if (CarpetSettings.movableBlockEntities)
         {
@@ -148,8 +146,8 @@ public abstract class PistonHandler_customStickyMixin
             }
         }
     }
-    @Shadow @Final private List<BlockPos> movedBlocks;
-    @Inject(method = "calculatePush", at = @At(value = "INVOKE", target = "Ljava/util/List;get(I)Ljava/lang/Object;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true)
+    @Shadow @Final private List<BlockPos> toPush;
+    @Inject(method = "resolve", at = @At(value = "INVOKE", target = "Ljava/util/List;get(I)Ljava/lang/Object;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true)
     /**
      * Handles blocks besides the slimeblock that are sticky.
      * Supports blocks that are sticky on one side, (double chests now, 2no2name)
@@ -159,7 +157,7 @@ public abstract class PistonHandler_customStickyMixin
     private void stickToStickySide(CallbackInfoReturnable<Boolean> cir, int int_1){
         if (CarpetSettings.movableBlockEntities)
         {
-            if (!stickToStickySide(this.movedBlocks.get(int_1)))
+            if (!stickToStickySide(this.toPush.get(int_1)))
             {
                 cir.setReturnValue(false);
             }
@@ -167,11 +165,11 @@ public abstract class PistonHandler_customStickyMixin
 
         if (CarpetSettings.doChainStone)
         {
-            BlockPos pos = this.movedBlocks.get(int_1);
-            BlockState chainState = world.getBlockState(pos);
+            BlockPos pos = this.toPush.get(int_1);
+            BlockState chainState = level.getBlockState(pos);
             // chain is sideways
-            if (chainState.getBlock() == Blocks.CHAIN && !isChainOnAxis(chainState, motionDirection)
-                    && !this.canMoveAdjacentBlock(pos))
+            if (chainState.getBlock() == Blocks.CHAIN && !isChainOnAxis(chainState, pushDirection)
+                    && !this.addBranchingBlocks(pos))
             {
                 cir.setReturnValue(false);
             }
@@ -186,7 +184,7 @@ public abstract class PistonHandler_customStickyMixin
      */
     private boolean stickToStickySide(BlockPos blockPos_1)
     {
-        BlockState blockState_1 = this.world.getBlockState(blockPos_1);
+        BlockState blockState_1 = this.level.getBlockState(blockPos_1);
         Block block = blockState_1.getBlock();
         Direction stickyDirection  = null;
         if(block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST) {
@@ -198,7 +196,7 @@ public abstract class PistonHandler_customStickyMixin
         //    stickyDirection = blockState_1.get(FacingBlock.FACING);
         //}
 
-        return stickyDirection == null || this.tryMove(blockPos_1.offset(stickyDirection), stickyDirection);
+        return stickyDirection == null || this.addBlockLine(blockPos_1.relative(stickyDirection), stickyDirection);  //offset
     }
 
 
@@ -206,20 +204,20 @@ public abstract class PistonHandler_customStickyMixin
      * This never seems to run
      * @author gnembon
      */
-    @Inject(method = "tryMove", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at= @At(
+    @Inject(method = "addBlockLine", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at= @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/block/piston/PistonHandler;isBlockSticky(Lnet/minecraft/block/Block;)Z",
+            target = "Lnet/minecraft/world/level/block/piston/PistonStructureResolver;isSticky(Lnet/minecraft/world/level/block/state/BlockState;)Z",
             ordinal = 1,
             shift = At.Shift.BEFORE
             )
     )
     private void redirectIsStickyBlock(BlockPos pos, Direction dir, CallbackInfoReturnable<Boolean> cir,
-                                       BlockState blockState, Block block, int i, int j, int l, BlockPos blockPos2, int m, int n, BlockPos blockPos3)
+                                       BlockState blockState, int i, int j, int l, BlockPos blockPos2, int m, int n, BlockPos blockPos3)
     {
         if (CarpetSettings.doChainStone)
         {
-            BlockState chainState = world.getBlockState(blockPos3);
-            if (chainState.getBlock() == Blocks.CHAIN && !isChainOnAxis(chainState, motionDirection) && !canMoveAdjacentBlock(blockPos3))
+            BlockState chainState = level.getBlockState(blockPos3);
+            if (chainState.getBlock() == Blocks.CHAIN && !isChainOnAxis(chainState, pushDirection) && !addBranchingBlocks(blockPos3))
             {
                 cir.setReturnValue(false);
             }
@@ -230,9 +228,9 @@ public abstract class PistonHandler_customStickyMixin
     /**
      * Custom movement of blocks stuck to the sides of blocks other than slimeblocks like chains
      */
-    @Inject(method = "canMoveAdjacentBlock", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at = @At(
+    @Inject(method = "addBranchingBlocks", locals = LocalCapture.CAPTURE_FAILHARD, cancellable = true, at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/block/piston/PistonHandler;isAdjacentBlockStuck(Lnet/minecraft/block/Block;Lnet/minecraft/block/Block;)Z",
+            target = "Lnet/minecraft/world/level/block/piston/PistonStructureResolver;canStickToEachOther(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)Z",
             shift = At.Shift.BEFORE
     ))
     private void otherSideStickyCases(BlockPos pos, CallbackInfoReturnable<Boolean> cir,
@@ -243,13 +241,13 @@ public abstract class PistonHandler_customStickyMixin
             if (blockState.getBlock() == Blocks.CHAIN && isChainOnAxis(blockState, direction) && !blockState2.isAir())
             {
                 Block otherBlock = blockState2.getBlock();
-                if ((otherBlock == Blocks.CHAIN && (blockState.get(ChainBlock.AXIS) == blockState2.get(ChainBlock.AXIS)))
+                if ((otherBlock == Blocks.CHAIN && (blockState.getValue(ChainBlock.AXIS) == blockState2.getValue(ChainBlock.AXIS)))
                         || CarpetSettings.chainStoneStickToAll
-                        || isEndRodOnAxis(blockState2, blockState.get(ChainBlock.AXIS))
+                        || isEndRodOnAxis(blockState2, blockState.getValue(ChainBlock.AXIS))
                         || otherBlock == Blocks.HONEY_BLOCK
-                        || Block.sideCoversSmallSquare(world, blockPos, direction.getOpposite()))
+                        || Block.canSupportCenter(level, blockPos, direction.getOpposite()))
                 {
-                    if (!tryMove(blockPos, direction))
+                    if (!addBlockLine(blockPos, direction))
                     {
                         cir.setReturnValue(false);
                     }
@@ -266,13 +264,13 @@ public abstract class PistonHandler_customStickyMixin
      * @param block2
      * @return
      */
-    @Redirect(method = "canMoveAdjacentBlock", at = @At(
+    @Redirect(method = "addBranchingBlocks", at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/block/piston/PistonHandler;isAdjacentBlockStuck(Lnet/minecraft/block/Block;Lnet/minecraft/block/Block;)Z")
+            target = "Lnet/minecraft/world/level/block/piston/PistonStructureResolver;canStickToEachOther(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)Z")
     )
-    private boolean isStuckSlimeStone(Block block, Block block2)
+    private boolean isStuckSlimeStone(BlockState block, BlockState block2)
     {
-        return isBlockSticky(block2) && isAdjacentBlockStuck(block, block2);
+        return isSticky(block2) && canStickToEachOther(block, block2);
     }
 
 
@@ -286,11 +284,11 @@ public abstract class PistonHandler_customStickyMixin
     {
         ChestType chestType;
         try{
-            chestType = blockState.get(ChestBlock.CHEST_TYPE);
+            chestType = blockState.getValue(ChestBlock.TYPE);
         }catch(IllegalArgumentException e){return null;}
         if(chestType == ChestType.SINGLE)
             return null;
-        return ChestBlock.getFacing(blockState);
+        return ChestBlock.getConnectedDirection(blockState);
     }
 
 
@@ -298,7 +296,7 @@ public abstract class PistonHandler_customStickyMixin
     {
         Direction.Axis axis;
         try {
-            axis = state.get(ChainBlock.AXIS);
+            axis = state.getValue(ChainBlock.AXIS);
         }catch(IllegalArgumentException e){return false;}
         return stickDirection.getAxis() == axis;
     }
@@ -308,7 +306,7 @@ public abstract class PistonHandler_customStickyMixin
         if (state.getBlock() != Blocks.END_ROD) return false;
         Direction facing;
         try {
-            facing = state.get(EndRodBlock.FACING);
+            facing = state.getValue(EndRodBlock.FACING);
         }catch(IllegalArgumentException e){return false;}
         return stickAxis == facing.getAxis();
     }
