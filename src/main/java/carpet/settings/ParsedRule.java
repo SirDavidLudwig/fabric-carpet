@@ -2,16 +2,14 @@ package carpet.settings;
 
 import carpet.utils.Translations;
 import carpet.utils.Messenger;
-import com.google.common.collect.ImmutableList;
-import net.minecraft.server.command.ServerCommandSource;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-
+import java.util.stream.Collectors;
+import net.minecraft.commands.CommandSourceStack;
 import org.apache.commons.lang3.ClassUtils;
 
 import static carpet.utils.Translations.tr;
@@ -29,9 +27,9 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
     public final String name;
     public final String description;
     public final String scarpetApp;
-    public final ImmutableList<String> extraInfo;
-    public final ImmutableList<String> categories;
-    public final ImmutableList<String> options;
+    public final List<String> extraInfo;
+    public final List<String> categories;
+    public final List<String> options;
     public boolean isStrict;
     public boolean isClient;
     public final Class<T> type;
@@ -47,8 +45,8 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
         this.type = (Class<T>) field.getType();
         this.description = rule.desc();
         this.isStrict = rule.strict();
-        this.extraInfo = ImmutableList.copyOf(rule.extra());
-        this.categories = ImmutableList.copyOf(rule.category());
+        this.extraInfo = List.of(rule.extra());
+        this.categories = List.of(rule.category());
         this.scarpetApp = rule.appSource();
         this.settingsManager = settingsManager;
         this.validators = new ArrayList<>();
@@ -76,22 +74,22 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
         this.defaultAsString = convertToString(this.defaultValue);
         if (rule.options().length > 0)
         {
-            this.options = ImmutableList.copyOf(rule.options());
+            this.options = List.of(rule.options());
         }
         else if (this.type == boolean.class){
-            this.options = ImmutableList.of("true","false");
+            this.options = List.of("true","false");
         }
         else if(this.type == String.class && categories.contains(RuleCategory.COMMAND))
         {
-            this.options = ImmutableList.of("true", "false", "ops");
+            this.options = List.of("true", "false", "ops");
         }
         else if (this.type.isEnum())
         {
-            this.options = Arrays.stream(this.type.getEnumConstants()).map(e -> ((Enum) e).name().toLowerCase(Locale.ROOT)).collect(ImmutableList.toImmutableList());
+            this.options = Arrays.stream(this.type.getEnumConstants()).map(e -> ((Enum) e).name().toLowerCase(Locale.ROOT)).collect(Collectors.toUnmodifiableList());
         }
         else
         {
-            this.options = ImmutableList.of();
+            this.options = List.of();
         }
         if (isStrict && !this.options.isEmpty())
         {
@@ -120,7 +118,7 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
         }
     }
 
-    public ParsedRule<T> set(ServerCommandSource source, String value)
+    public ParsedRule<T> set(CommandSourceStack source, String value)
     {
         if (settingsManager != null && settingsManager.locked)
             return null;
@@ -152,7 +150,7 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
         }
     }
 
-    ParsedRule<T> set(ServerCommandSource source, T value, String stringValue)
+    ParsedRule<T> set(CommandSourceStack source, T value, String stringValue)
     {
         try
         {
@@ -163,7 +161,7 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
                 {
                     if (source != null)
                     {
-                        Messenger.m(source, "r Wrong value for " + name + ": " + stringValue);
+                        validator.notifyFailure(source, this, stringValue);
                         if (validator.description() != null)
                             Messenger.m(source, "r " + validator.description());
                     }
@@ -230,7 +228,7 @@ public final class ParsedRule<T> implements Comparable<ParsedRule> {
     /**
      * Resets this rule to its default value
      */
-    public void resetToDefault(ServerCommandSource source)
+    public void resetToDefault(CommandSourceStack source)
     {
         set(source, defaultValue, defaultAsString);
     }

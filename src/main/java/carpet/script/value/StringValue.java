@@ -45,6 +45,6 @@ public class StringValue extends Value
     @Override
     public Tag toTag(boolean force)
     {
-        return StringTag.of(str);
+        return StringTag.valueOf(str);
     }
 }

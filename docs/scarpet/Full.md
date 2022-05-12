@@ -437,7 +437,7 @@ Or an example to find if a player has specific enchantment on a held axe (either
 
 <pre>
 global_get_enchantment(p, ench) -> (
-$   for(['main','offhand'],
+$   for(['mainhand','offhand'],
 $      holds = query(p, 'holds', _);
 $      if( holds,
 $         [what, count, nbt] = holds;
@@ -621,7 +621,33 @@ so some caution (prior testing) is advised. Some of these multi-argument built-i
  `if`, `try`, `sort_key`, `system_variable_get`, `synchronize`, `sleep`, `in_dimension`, 
 all container functions (`get`, `has`, `put`, `delete`), 
 and all loop functions (`while`, `loop`, `map`, `filter`, `first`, `all`, `c_for`, `for` and`reduce`).
- 
+
+### `Binary (bitwise) operations`
+
+These are a bunch of operators that work exclusively on numbers, more specifically their binary representations. Some of these
+work on multiple numbers, some on only 2, and others on only 1. Note that most of these functions (all but `double_to_long_bits`)
+only take integer values, so if the input has a decimal part, it will be discarded.
+
+ - `bitwise_and(...)` -> Does the bitwise AND operation on each number in order. Note that with larger ranges of numbers this will
+	tend to 0.
+ - `bitwise_xor(...)` -> Does the bitwise XOR operation on each number in order.
+ - `bitwise_or(...)` -> Does the bitwise AND operation on each number in order. Note that with larger ranges of numbers this will
+	tend to -1.
+ - `bitwise_shift_left(num, amount)` -> Shifts all the bits of the first number `amount` spots to the left. Note that shifting more
+	than 63 positions will result in a 0 (cos you shift out all the bits of the number)
+ - `bitwise_shift_right(num, amount)` -> Shifts all the bits of the first number `amount` spots to the right. Like with the above,
+	shifting more than 63 bits results in a 0.
+ - `bitwise_roll_left(num, amount)` -> Rolls the bits of the first number `amount` bits to the left. This is basically where you
+	shift out the first `amount` bits and then add them on at the back, essentially 'rolling' the number. Note that unlike with
+        shifting, you can roll more than 63 bits at a time, as it just makes the number roll over more times, which isn't an issue
+ - `bitwise_roll_right(num, amount)` -> Same as above, just rolling in the other direction
+ - `bitwise_not(num)` -> Flips all the bits of the number. This is simply done by performing xor operation with -1, which in binary is
+	all ones.
+ - `bitwise_popcount(num)` -> Returns the number of ones in the binary representation of the number. For the number of zeroes, just
+	do 64 minus this number.
+ - `double_to_long_bits(num)` -> Returns a representation of the specified floating-point value according to the IEEE 754 floating-point
+	"double format" bit layout.
+ - `long_to_double_bits(num)` -> Returns the double value corresponding to a given bit representation.
 # Arithmetic operations
 
 ## Basic Arithmetic Functions
@@ -630,11 +656,12 @@ There is bunch of them - they require a number and spit out a number, doing what
 
 ### `fact(n)`
 
-Factorial of a number, a.k.a `n!`, just not in `scarpet`. Gets big... quick...
+Factorial of a number, a.k.a `n!`, just not in `scarpet`. Gets big... quick... Therefore, values larger 
+than `fact(20)` will not return the exact value, but a value with 'double-float' precision.
 
 ### `sqrt(n)`
 
-Square root. For other fancy roots, use `^`, math and yo noggin. Imagine square roots on a tree...
+Square root (not 'a squirt') of a number. For other fancy roots, use `^`, math and yo noggin. Imagine square roots on a tree...
 
 ### `abs(n)`
 
@@ -996,7 +1023,7 @@ indicating if the given seed has been used or not.
 
 returns a noise value from `0.0` to `1.0` (roughly) for 1, 2 or 3 dimensional coordinate. The default seed it samples 
 from is `0`, but seed can be specified as a 4th argument as well. In case you need 1D or 2D noise values with custom 
-seed, use `null` for `z`, or `y` and `z` arguments respectively.
+seed, use `null` for `y` and `z`, or `z` arguments respectively.
 
 Perlin noise is based on a square grid and generates rougher maps comparing to Simplex, which is creamier. 
 Querying for lower-dimensional result, rather than affixing unused dimensions to constants has a speed benefit,
@@ -1464,6 +1491,10 @@ but if symbols are used directly in the module body rather than functions, it ma
 Returns full list of available symbols that could be imported from this module, which can be used to debug import 
 issues, and list contents of libraries.
 
+You can load and import functions from dependencies in a remote app store's source specified in your config's `libraries` block, but make sure
+to place your config _before_ the import in order to allow the remote dependency to be downloaded (currently, app resources are only downloaded
+when using the `/carpet download` command).
+
 ### `call(function, ? args ...)`
 
 calls a user defined function with specified arguments. It is equivalent to calling `function(args...)` directly 
@@ -1680,8 +1711,7 @@ equivalent to `has(get(foo,a), b)` or `has(foo, a, b)`
 ### `delete(container, address, ...), delete(lvalue)`
 
 Removes specific entry from the container. For the lists - removes the element and shrinks it. For maps, it 
-removes the key from the map, and for nbt - removes content from a given path. For lists and maps returns previous 
-entry at the address, for nbt's - number of removed objects, with 0 indicating that the original value was unaffected.
+removes the key from the map, and for nbt - removes content from a given path.
 
 Like with the `get` and `has`, `delete` can accept chained addresses, as well as l-value container access, removing 
 the value from the leaf of the path provided, so `delete(foo, a, b)` is the 
@@ -1950,9 +1980,13 @@ apps `__on_close()` will execute once per app, and with `'player'` scoped apps, 
 ### App config via `__config()` function
 
 If an app defines `__config` method, and that method returns a map, it will be used to apply custom settings 
-for this app. Currently the following options are supported:
+for this app. Currently, the following options are supported:
 
-*   `'scope'`: default scope for global variables for the app, Default is `'player'`, which means that globals and defined 
+* `'strict'` : if `true`, any use of an uninitialized variable will result in program failure. Defaults to `false` if 
+not specified. With `'strict'`you have to assign an initial value to any variable before using it. It is very useful 
+to use this setting for app debugging and for beginner programmers. Explicit initialization is not required for your 
+code to work, but mistakes may result from improper assumptions about initial variable values of `null`.
+* `'scope'`: default scope for global variables for the app, Default is `'player'`, which means that globals and defined 
 functions will be unique for each player so that apps for each player will run in isolation. This is useful in 
 tool-like applications, where behaviour of things is always from a player's perspective. With player scope the initial run 
 of the app creates is initial state: defined functions, global variables, config and event handlers, which is then copied for 
@@ -2020,30 +2054,46 @@ in a list and contain of map-like resources descriptors, looking like
    'resources' -> [
         {
             'source' -> 'https://raw.githubusercontent.com/gnembon/fabric-carpet/master/src/main/resources/assets/carpet/icon.png',
-            'type' -> 'url',
             'target' -> 'foo/photos.zip/foo/cm.png',
         },
         {
-            'source' -> 'survival/README.md',
-            'type' -> 'store',
+            'source' -> '/survival/README.md',
             'target' -> 'survival_readme.md',
             'shared' -> true,
         },
         {
-            'source' -> 'carpets.sc',
-            'type' -> 'app',
-            'target' -> 'apps/flying_carpets.sc',
-            'shared' -> true,
+            'source' -> 'circle.sc', // Relative path
+            'target' -> 'apps/circle.sc', // This won't install the app, use 'libraries' for that
         },
     ]
    ```
-   `source` and `type` indicate resource location: either an arbitrary url (type `'url'`), 
-   absolute location of a file in the app store (type `'store'`),
-or a relative location in the same folder as the app in question (type `'app'`). 
-`'target'` points to the path in app data, or shared app data folder
+   `source` indicates resource location: either an arbitrary url (starting with `http://` or `https://`), 
+   absolute location of a file in the app store (starting with a slash `/`),
+or a relative location in the same folder as the app in question (the relative location directly). 
+`'target'` points to the path in app data, or shared app data folder. If not specified it will place the app into the main data folder with the name it has.
 if `'shared'` is specified and `true`. When re-downloading the app, all resources will be re-downloaded as well. 
-Currently, app resources
-are only downloaded when using `/carpet download` command.
+Currently, app resources are only downloaded when using `/script download` command.
+*   `libraries` - list of libraries or apps to be downloaded when installing the app from the app store. It needs to be a list of map-like resource
+descriptors, like the above `resources` field.
+   ```
+   'libraries' -> [
+        {
+            'source' -> '/tutorial/carpets.sc'
+        },
+        {
+            'source' -> '/fundamentals/heap.sc',
+            'target' -> 'heap-lib.sc'
+        }
+    ]
+   ```
+    `source` indicates resource location and must point to a scarpet app or library. It can be either an arbitrary url (starting with `http://` 
+    or `https://`), absolute location of a file in the app store (starting with a slash `/`), or a relative location in the same folder as the app
+    in question (the relative location directly). 
+    `target` is an optional field indicating the new name of the app. If not specified it will place the app into the main data folder with the name it has.
+If the app has relative resources dependencies, Carpet will use the app's path for relatives if the app was loaded from the same app store, or none if the 
+app was loaded from an external url.
+If you need to `import()` from dependencies indicated in this block, make sure to have the `__config()` map before any import that references your
+remote dependencies, in order to allow them to be downloaded and initialized before the import is executed.
 *   `'arguments'` - defines custom argument types for legacy commands with `'legacy_command_type_support'` as well
 as for the custom commands defined with `'commands'`, see below.
 *   `'commands'` - defines custom commands for the app to be executed with `/<app>` command, see below.
@@ -2098,7 +2148,7 @@ baz(entities) -> // same thing
  ```
 
 It works similarly to the auto command, but arguments get their inferred types based on the argument
-names, looking at the full name, or the suffix after the last `_` that indicates the variable type. For instance, variable named `float` will
+names, looking at the full name, or any suffix when splitting on `_` that indicates the variable type. For instance, variable named `float` will
 be parsed as a floating point number, but it can be named `'first_float'` or `'other_float'` as well. Any variable that is not
 supported, will be parsed as a `'string'` type. 
 
@@ -2150,7 +2200,7 @@ paths with functions to execute, and optionally, custom argument types. Commands
 the key (can be empty) consists of 
 the execution path with the command syntax, which consists of literals (as is) and arguments (wrapped with `<>`), with the name / suffix
 of the name of the attribute indicating its type, and the value represent function to call, either function values,
-defined function names, or functions with some default arguments. Values extracted from commands will be passed to the
+defined function names, or functions with some default arguments. Argument names need to be unique for each command. Values extracted from commands will be passed to the
 functions and executed. By default, command list will be checked for ambiguities (commands with the same path up to some point
 that further use different attributes), causing app loading error if that happens, however this can be suppressed by specifying
 `'allow_command_conflicts'`.
@@ -2163,8 +2213,14 @@ and less frequently used features, like forks and redirects, used pretty much on
 
 ### Command argument types
 
-There are several default argument types that can be used directly without specifying custom types. Each argument can be 
-customized in the `'arguments'` section of the app config, specifying its base type, via `'type'` that needs
+Argument types differ from actual argument names that the types are the suffixes of the used argument names, when separated with 
+`'_'` symbol. For example argument name `'from_pos'` will be interpreted as a built-in type `'int'` and provided to the command system
+as a name `'from_pos'`, however if you define a custom type `'from_pos'`, your custom type will be used instead. 
+Longer suffixes take priority over shorter prefixes, then user defined suffixes mask build-in prefixes.
+
+There are several default argument types that can be used directly without specifying custom types. 
+
+Each argument can be customized in the `'arguments'` section of the app config, specifying its base type, via `'type'` that needs
 to match any of the built-in types, with a series of optional modifiers. Shared modifiers include:
   * `suggest` - static list of suggestions to show above the command while typing
   * `suggester` - function taking one map argument, indicating current state of attributes in the parsed command
@@ -2218,6 +2274,7 @@ Here is a list of built-in types, with their return value formats, as well as a 
   * `'dimension'`: string representing a valid dimension in the world.
   * `'anchor'`: string of `feet` or `eyes`.
   * `'entitytype'`: string representing a type of entity 
+  * `'entities'`: entity selector, returns a list of entities directly. Can be configured with `'single'` to only accept a single entity (will return the entity instead of a singleton) and with `'players'` to only accept players.
   * `'floatrange'`: pair of two numbers where one is smaller than the other 
   * `'players'`: returning a list of valid player name string, logged in or not. If configured with `'single'` returns only one player or `null`.
   * `'intrange'`: same as `'floatrange'`, but requiring integers. 
@@ -2240,7 +2297,7 @@ Here is a list of built-in types, with their return value formats, as well as a 
   * `'loottable'`: name of a loot table source
   * `'attribute'`: an attribute name
   * `'boss'`: a bossbar name
-  * `'biome'`: a biome name 
+  * `'biome'`: a biome name. or biome tag
   * `'sound'`: name of a sound 
   * `'storekey'`: string of a valid current data store key.
   * `'identifier'`: any valid identifier. 'minecraft:' prefix is stripped off as a default.
@@ -2423,12 +2480,11 @@ Throws `unknown_poi` if the provided point of interest doesn't exist
 ### `set_biome(pos, biome_name, update=true)`
 
 Changes the biome at that block position. if update is specified and false, then chunk will not be refreshed
-on the clients. Biome changes can only be send to clients with the entire data from the chunk.
+on the clients. Biome changes can only be sent to clients with the entire data from the chunk.
 
-Setting a biome is now (as of 1.16) dimension specific. In the overworld and the end changing the biome
-is only effective if you set it at y=0, and affects the entire column of. In the nether - you have to use the
-specific Y coordinate of the biome you want to change, and it affects roughly 4x4x4 area (give or take some random
-noise).
+Be aware that depending on the MC version and dimension settings biome can be set either in a 1x1x256
+column or 4x4x4 hyperblock, so for some versions Y will be ignored and for some precision of biome
+setting is less than 1x1x1 block.
 
 Throws `unknown_biome` if the `biome_name` doesn't exist.
 
@@ -2612,19 +2668,22 @@ poi(x,y,z,5) => []  // nothing around
 poi(x,y,z,5) => [['nether_portal',0,[7,8,9]],['nether_portal',0,[7,9,9]]] // two portal blocks in the range
 </pre>
 
-### `biome()` `biome(name)` `biome(block)` `biome(block/name, feature)`
+### `biome()` `biome(name)` `biome(block)` `biome(block/name, feature)`, `biome(noise_map)`
 
 Without arguments, returns the list of biomes in the world.
 
-With block, or name, returns the name of the biome in that position, or throws `'unknown_biome'` if provided biome or block are not valid. 
+With block, or name, returns the name of the biome in that position, or throws `'unknown_biome'` if provided biome or block are not valid.
+
+(1.18+) if passed a map of `continentalness`, `depth`, `erosion`, `humidity`, `temperature`, `weirdness`, returns the biome that exists at those noise values.  
+Note: Have to pass all 6 of the mentioned noise types and only these noise types for it to evaluate a biome.
 
 With an optional feature, it returns value for the specified attribute for that biome. Available and queryable features include:
-* `'top_material'`: unlocalized block representing the top surface material
-* `'under_material'`: unlocalized block representing what sits below topsoil
+* `'top_material'`: unlocalized block representing the top surface material (1.17.1 and below only)
+* `'under_material'`: unlocalized block representing what sits below topsoil (1.17.1 and below only)
 * `'category'`: the parent biome this biome is derived from. Possible values include:
 `'none'`, `'taiga'`, `'extreme_hills'`, `'jungle'`, `'mesa'`, `'plains'`, `'savanna'`,
 `'icy'`, `'the_end'`, `'beach'`, `'forest'`, `'ocean'`, `'desert'`, `'river'`,
-`'swamp'`, `'mushroom'` and  `'nether'`.
+`'swamp'`, `'mushroom'` , `'nether'`, `'underground'` (1.18+) and `'mountain'` (1.18+).
 * `'temperature'`: temperature from 0 to 1
 * `'fog_color'`: RGBA color value of fog 
 * `'foliage_color'`: RGBA color value of foliage
@@ -2633,11 +2692,11 @@ With an optional feature, it returns value for the specified attribute for that 
 * `'water_fog_color'`: RGBA color value of water fog
 * `'humidity'`: value from 0 to 1 indicating how wet is the biome
 * `'precipitation'`: `'rain'` `'snot'`, or `'none'`... ok, maybe `'snow'`, but that means snots for sure as well.
-* `'depth'`: float value indicating how high or low the terrain should generate. Values > 0 indicate generation above sea level
+* `'depth'`: (1.17.1 and below only) float value indicating how high or low the terrain should generate. Values > 0 indicate generation above sea level
 and values < 0, below sea level.
-* `'scale'`: float value indicating how flat is the terrain.
+* `'scale'`: (1.17.1 and below only) float value indicating how flat is the terrain.
 * `'features'`: list of features that generate in the biome, grouped by generation steps
-* `'structures'`: list of structures that generate in the biome.
+* `'structures'`: (1.17.1 and below only) list of structures that generate in the biome.
 
 ### `solid(pos)`
 
@@ -2736,7 +2795,14 @@ Boolean function, true if the block at position blocks movement.
 Returns the name of sound type made by the block at position. One of:
 
 `'wood'`, `'gravel'`, `'grass'`, `'stone'`, `'metal'`, `'glass'`, `'wool'`, `'sand'`, `'snow'`, 
-`'ladder'`, `'anvil'`, `'slime'`, `'sea_grass'`, `'coral'`
+`'ladder'`, `'anvil'`, `'slime'`, `'sea_grass'`, `'coral'`, `'bamboo'`', `'shoots'`', `'scaffolding'`', `'berry'`', `'crop'`',
+`'stem'`', `'wart'`', 
+`'lantern'`', `'fungi_stem'`', `'nylium'`', `'fungus'`', `'roots'`', `'shroomlight'`', `'weeping_vines'`', `'soul_sand'`',
+ `'soul_soil'`', `'basalt'`', 
+`'wart'`', `'netherrack'`', `'nether_bricks'`', `'nether_sprouts'`', `'nether_ore'`', `'bone'`', `'netherite'`', `'ancient_debris'`',
+`'lodestone'`', `'chain'`', `'nether_gold_ore'`', `'gilded_blackstone'`',
+`'candle'`', `'amethyst'`', `'amethyst_cluster'`', `'small_amethyst_bud'`', `'large_amethyst_bud'`', `'medium_amethyst_bud'`',
+`'tuff'`', `'calcite'`', `'copper'`'
 
 ### `material(pos)`
 
@@ -2746,7 +2812,7 @@ Returns the name of material of the block at position. very useful to target a g
 `'bubble_column'`, `'lava'`, `'snow_layer'`, `'fire'`, `'redstone_bits'`, `'cobweb'`, `'redstone_lamp'`, `'clay'`, 
 `'dirt'`, `'grass'`, `'packed_ice'`, `'sand'`, `'sponge'`, `'wood'`, `'wool'`, `'tnt'`, `'leaves'`, `'glass'`, 
 `'ice'`, `'cactus'`, `'stone'`, `'iron'`, `'snow'`, `'anvil'`, `'barrier'`, `'piston'`, `'coral'`, `'gourd'`, 
-`'dragon_egg'`, `'cake'`
+`'dragon_egg'`, `'cake'`, `'amethyst'`
 
 ### `map_colour(pos)`
 
@@ -2758,7 +2824,32 @@ Returns the map colour of a block at position. One of:
 '`, `'diamond'`, `'lapis'`, `'emerald'`, `'obsidian'`, `'netherrack'`, `'white_terracotta'`, `'orange_terracotta'`, 
 `'magenta_terracotta'`, `'light_blue_terracotta'`, `'yellow_terracotta'`, `'lime_terracotta'`, `'pink_terracotta'`, 
 `'gray_terracotta'`, `'light_gray_terracotta'`, `'cyan_terracotta'`, `'purple_terracotta'`, `'blue_terracotta'`, 
-`'brown_terracotta'`, `'green_terracotta'`, `'red_terracotta'`, `'black_terracotta'`
+`'brown_terracotta'`, `'green_terracotta'`, `'red_terracotta'`, `'black_terracotta'`,
+`'crimson_nylium'`, `'crimson_stem'`, `'crimson_hyphae'`, `'warped_nylium'`, `'warped_stem'`, `'warped_hyphae'`, `'warped_wart'`
+
+### `sample_noise(pos, ...type?)` 1.18+ only
+
+ Samples the multi noise value(s) on the given position.  
+If no type is passed, returns a map of `continentalness`, `depth`, `erosion`, `humidity`, `temperature`, `weirdness`.  
+Otherwise, returns the map of that specific noise.
+
+<pre>
+// without type
+sample_noise(pos) => {continentalness: 0.445300012827, erosion: 0.395399987698, temperature: 0.165399998426, ...}
+// passing type as multiple arguments
+sample_noise(pos, 'pillarRareness', 'aquiferBarrier') => {aquiferBarrier: -0.205013844481, pillarRareness: 1.04772473438}
+// passing types as a list with unpacking operator
+sample_noise(pos, ...['spaghetti3dFirst', 'spaghetti3dSecond']) => {spaghetti3dFirst: -0.186052125186, spaghetti3dSecond: 0.211626790923}
+</pre>
+
+Available types:
+
+`aquiferBarrier`, `aquiferFluidLevelFloodedness`, `aquiferFluidLevelSpread`, `aquiferLava`, `caveCheese`,
+`caveEntrance`, `caveLayer`, `continentalness`, `depth`, `erosion`, `humidity`, `island`, `jagged`, `oreGap`,
+`pillar`, `pillarRareness`, `pillarThickness`, `shiftX`, `shiftY`, `shiftZ`, `spaghetti2d`, `spaghetti2dElevation`,
+`spaghetti2dModulator`, `spaghetti2dThickness`, `spaghetti3d`, `spaghetti3dFirst`, `spaghetti3dRarity`,
+`spaghetti3dSecond`, `spaghetti3dThickness`, `spaghettiRoughness`, `spaghettiRoughnessModulator`, `temperature`,
+`terrain`, `terrainFactor`, `terrainOffset`, `terrainPeaks`, `weirdness`
 
 
 ### `loaded(pos)`
@@ -2990,7 +3081,8 @@ These contain some popular features and structures that are impossible or diffic
 
 ### `structure_eligibility(pos, ?structure, ?size_needed)`
 
-Checks wordgen eligibility for a structure in a given chunk. Requires a `Standard Structure` name (see above).
+Checks wordgen eligibility for a structure in a given chunk. Requires a `Structure Variant` name (see above),
+or `Standard Structure` to check structures of this type.
 If no structure is given, or `null`, then it will check
 for all structures. If bounding box of the structures is also requested, it will compute size of potential
 structures. This function, unlike other in the `structure*` category is not using world data nor accesses chunks
@@ -3003,7 +3095,7 @@ If structure is specified, it will return `null` if a chunk is not eligible or i
 a map with two values: `'box'` for a pair of coordinates indicating bounding box of the structure, and `'pieces'` for 
 list of elements of the structure (as a tuple), with its name, direction, and box coordinates of the piece.
 
-If structure is not specified, it will return a set of structure names that are eligible, or a map with structures
+If structure is not specified, or a `Standard Structure` was specified, like `'village'`,it will return a set of structure names that are eligible, or a map with structures
 as keys, and same type of map values as with a single structure call. An empty set or an empty map would indicate that nothing
 should be generated there.
 
@@ -3346,11 +3438,23 @@ List of entities riding the entity.
 
 Entity that `e` rides.
 
-###  `query(e, 'scoreboard_tags')`, `query(e, 'tags')`(deprecated)
+### `query(e, 'unmountable')`
+
+Boolean, true if the entity cannot be mounted.
+
+### `(deprecated) query(e, 'tags')`
+
+Deprecated by `query(e, 'scoreboard_tags')`
+
+### `query(e, 'scoreboard_tags')`
 
 List of entity's scoreboard tags.
 
-### `query(e, 'has_scoreboard_tag',tag)`, `query(e, 'has_tag',tag)`(deprecated)
+### `(deprecated) query(e, 'has_tag',tag)`
+
+Deprecated by `query(e, 'has_scoreboard_tag',tag)`
+
+### `query(e, 'has_scoreboard_tag',tag)`
 
 Boolean, true if the entity is marked with a `tag` scoreboad tag.
 
@@ -3370,6 +3474,14 @@ Boolean, true if the entity is burning.
 
 Number of remaining ticks of being on fire.
 
+### `query(e, 'is_freezing')`
+
+Boolean, true if the entity is freezing.
+
+### `query(e, 'frost')`
+
+Number of remaining ticks of being frozen.
+
 ### `query(e, 'silent')`
 
 Boolean, true if the entity is silent.
@@ -3385,6 +3497,10 @@ Boolean, true if the entity is invulnerable.
 ### `query(e, 'immune_to_fire')`
 
 Boolean, true if the entity is immune to fire.
+
+### `query(e, 'immune_to_frost')`
+
+Boolean, true if the entity is immune to frost.
 
 ### `query(e, 'dimension')`
 
@@ -3544,6 +3660,30 @@ query(p,'effect','resistance')  => null
 
 Number indicating remaining entity health, or `null` if not applicable.
 
+### `query(e, 'may_fly')`
+
+Returns a boolean indicating if the player can fly.
+
+### `query(e, 'flying')`
+
+Returns a boolean indicating if the player is flying.
+
+### `query(e, 'may_build')`
+
+Returns a boolean indicating if the player is allowed to place blocks.
+
+### `query(e, 'insta_build')`
+
+Returns a boolean indicating if the player can place blocks without consuming the item and if the player can shoot arrows without having them in the inventory.
+
+### `query(e, 'fly_speed')`
+
+Returns a number indicating the speed at which the player moves while flying.
+
+### `query(e, 'walk_speed')`
+
+Returns a number indicating the speed at which the player moves while walking.
+
 ### `query(e, 'hunger')`
 ### `query(e, 'saturation')`
 ### `query(e, 'exhaustion')`
@@ -3552,19 +3692,19 @@ Retrieves player hunger related information. For non-players, returns `null`.
 
 ### `query(e, 'absorption')`
 
-Gets the absorption of the player (yellow hearts, e.g when having a golden apple.)
+Gets the absorption of the player (yellow hearts, e.g. when having a golden apple.)
 
-### `query(e,'xp')`
-### `query(e,'xp_level')`
-### `query(e,'xp_progress')`
-### `query(e,'score')`
+### `query(e, 'xp')`
+### `query(e, 'xp_level')`
+### `query(e, 'xp_progress')`
+### `query(e, 'score')`
 
 Numbers related to player's xp. `xp` is the overall xp player has, `xp_level` is the levels seen in the hotbar,
 `xp_progress` is a float between 0 and 1 indicating the percentage of the xp bar filled, and `score` is the number displayed upon death 
 
 ### `query(e, 'air')`
 
-Number indicating remaining entity health, or `null` if not applicable.
+Number indicating remaining entity air, or `null` if not applicable.
 
 ### `query(e, 'language')`
 
@@ -3704,10 +3844,7 @@ type objects via `get, put, has, delete`, so try to use API calls first for that
 
 ## Entity Modification
 
-Like with entity querying, entity modifications happen through one function. Most position and movements modifications 
-don't work currently on players as their position is controlled by clients.
-
-Currently there is no ability to modify NBT directly, but you could always use `run('data modify entity ...')`.
+Like with entity querying, entity modifications happen through one function.
 
 ### `modify(e, 'remove')`
 
@@ -3751,7 +3888,7 @@ Moves the entity by a vector from its current location.
 
 Sets the motion vector (where and how much entity is moving).
 
-### `modify(e, 'motion_z', x), modify(e, 'motion_y', y), modify(e, 'motion_z', z)`
+### `modify(e, 'motion_x', x), modify(e, 'motion_y', y), modify(e, 'motion_z', z)`
 
 Sets the corresponding component of the motion vector.
 
@@ -3802,6 +3939,10 @@ Dismounts riding entity.
 
 Mounts the entity to the `other`.
 
+### `modify(e, 'unmountable', boolean)`
+
+Denies or allows an entity to be mounted.
+
 ### `modify(e, 'drop_passengers')`
 
 Shakes off all passengers.
@@ -3836,6 +3977,38 @@ players, since they are controlled client side.
 Applies status effect to the living entity. Takes several optional parameters, which default to `0`, `true`, 
 `true` and `false`. If no duration is specified, or if it's null or 0, the effect is removed. If name is not specified,
 it clears all effects.
+
+### `modify(e, 'health', float)`
+
+Modifies the health of an entity.
+
+### `modify(e, 'may_fly', boolean)`
+
+Allows or denies the player the ability to fly. If the player is flying and the ability is removed, the player will stop flying.
+
+### `modify(e, 'flying', boolean)`
+
+Changes the flight status of the player (if it is flying or not).
+
+### `modify(e, 'may_build', boolean)`
+
+Allows or denies the player the ability to place blocks.
+
+### `modify(e, 'insta_build', boolean)`
+
+Allows or denies the player to place blocks without reducing the item count of the used stack and to shoot arrows without having them in the inventory.
+
+### `modify(e, 'fly_speed', float)`
+
+Modifies the value of the speed at which the player moves while flying.
+
+### `modify(e, 'walk_speed', float)`
+
+Modifies the value of the speed at which the player moves while walking.
+
+### `modify(e, 'selected_slot', int)`
+
+Changes player's selected slot.
 
 ### `modify(e, 'home', null), modify(e, 'home', block, distance?), modify(e, 'home', x, y, z, distance?)`
 
@@ -3890,6 +4063,10 @@ Toggles invulnerability for the entity.
 
 Will set entity on fire for `ticks` ticks. Set to 0 to extinguish.
 
+### `modify(e, 'frost', ticks)`
+
+Will give entity frost for `ticks` ticks. Set to 0 to unfreeze.
+
 ### `modify(e, 'hunger', value)`
 ### `modify(e, 'saturation', value)`
 ### `modify(e, 'exhaustion', value)`
@@ -3912,7 +4089,7 @@ maybe you will get a double, who knows.
 
 ### `modify(e, 'air', ticks)`
 
-Modifies entity air
+Modifies entity air.
 
 ### `modify(e, 'add_exhaustion', value)`
 
@@ -3945,6 +4122,7 @@ defining the callback with `entity_event`.
 The following events can be handled by entities:
 
 *   `'on_tick'`: executes every tick right before the entity is ticked in the game. Required arguments: `entity`
+*   `'on_move'`: executes every time an entity changes position, invoked just after it has been moved to the new position. Required arguments: `entity, velocity, pos1, pos2`
 *   `'on_death'`: executes once when a living entity dies. Required arguments: `entity, reason`
 *   `'on_removed'`: execute once when an entity is removed. Required arguments: `entity`
 *   `'on_damaged'`: executed every time a living entity is about to receive damage.
@@ -3959,21 +4137,27 @@ In case you want to pass an event handler that is not defined in your module, pl
 
 ### `entity_load_handler(descriptor / descriptors, function)`, `entity_load_handler(descriptor / descriptors, call_name, ... args?)`
 
-Attaches a callback to when any entity matching the following type / types is loaded in the game, allowing to grab a handle
-to an entity right when it is loaded to the world without querying them every tick. Callback expects one parameter - the entity.
+Attaches a callback to trigger when any entity matching the following type / types is loaded in the game, allowing to grab a handle
+to an entity right when it is loaded to the world without querying them every tick. Callback expects two parameters - the entity,
+and a boolean value indicating if the entity was newly created(`true`) or just loaded from disk. Single argument functions accepting
+only entities are allowed, but deprecated and will be removed at some point.
+
 If callback is `null`, then the current entity handler, if present, is removed. Consecutive calls to `entity_load_handler` will add / subtract
 of the currently targeted entity types pool.
 
-Like other global events, calls to `entity_load_handler` can only be attached in apps with global scope. Player scope makes so
-that it is not clear which player to use run the load call.
+Like other global events, calls to `entity_load_handler` should only be attached in apps with global scope. For player scope apps,
+it will be called multiple times, once for each player. That's likely not what you want to do.
 
 ```
 // veryfast method of getting rid of all the zombies. Callback is so early, its packets haven't reached yet the clients
 // so to save on log errors, removal of mobs needs to be scheduled for later.
-entity_load_handler('zombie', _(e) -> schedule(0, _(outer(e)) -> modify(e, 'remove')))
+entity_load_handler('zombie', _(e, new) -> schedule(0, _(outer(e)) -> modify(e, 'remove')))
+
+// another way to do it is to remove the entity when it starts ticking
+entity_load_handler('zombie', _(e, new) -> entity_event(e, 'on_tick', _(e) -> modify(e, 'remove')))
 
 // making all zombies immediately faster and less susceptible to friction of any sort
-entity_load_handler('zombie', _(e) -> entity_event(e, 'on_tick', _(e) -> modify(e, 'motion', 1.2*e~'motion')))
+entity_load_handler('zombie', _(e, new) -> entity_event(e, 'on_tick', _(e) -> modify(e, 'motion', 1.2*e~'motion')))
 ```
 
 Word of caution: entities can be loaded with chunks in various states, for instance when a chunk is being generated, this means
@@ -3981,25 +4165,30 @@ that accessing world blocks would cause the game to freeze due to force generati
 sure to never assume the chunk is ready and use `entity_load_handler` to schedule actions around the loaded entity, 
 or manipulate entity directly.
 
+Also, it is possible that mobs that spawn with world generation, while being 'added' have their metadata serialized and cached
+internally (vanilla limitation), so some modifications to these entities may have no effect on them. This affects mobs created with
+world generation.
+
 For instance the following handler is safe, as it only accesses the entity directly. It makes all spawned pigmen jump
 ```
-/script run entity_load_handler('zombified_piglin', _(e) -> modify(e, 'motion', 0, 1, 0) )
+/script run entity_load_handler('zombified_piglin', _(e, new) -> if(new, modify(e, 'motion', 0, 1, 0)) )
 ```
 But the following handler, attempting to despawn pigmen that spawn in portals, will cause the game to freeze due to cascading access to blocks that would cause neighbouring chunks 
 to force generate, causing also error messages for all pigmen caused by packets send after entity is removed by script.
 ```
-/script run entity_load_handler('zombified_piglin', _(e) -> if(block(pos(e))=='nether_portal', modify(e, 'remove') ) )
+/script run entity_load_handler('zombified_piglin', _(e, new) -> if(new && block(pos(e))=='nether_portal', modify(e, 'remove') ) )
 ```
 Easiest method to circumvent these issues is delay the check, which may or may not cause cascade load to happen, but 
 will definitely break the infinite chain.
 ```
-/script run entity_load_handler('zombified_piglin', _(e) -> schedule(0, _(outer(e)) -> if(block(pos(e))=='nether_portal', modify(e, 'remove') ) ) )
+/script run entity_load_handler('zombified_piglin', _(e, new) -> if(new, schedule(0, _(outer(e)) -> if(block(pos(e))=='nether_portal', modify(e, 'remove') ) ) ) )
 ```
 But the best is to perform the check first time the entity will be ticked - giving the game all the time to ensure chunk 
-is fully loaded and entity processing, removing the tick handler 
+is fully loaded and entity processing, removing the tick handler: 
 ```
-/script run entity_load_handler('zombified_piglin', _(e) -> entity_event(e, 'on_tick', _(e) -> ( if(block(pos(e))=='nether_portal', modify(e, 'remove')); entity_event(e, 'on_tick', null) ) ) )
+/script run entity_load_handler('zombified_piglin', _(e, new) -> if(new, entity_event(e, 'on_tick', _(e) -> ( if(block(pos(e))=='nether_portal', modify(e, 'remove')); entity_event(e, 'on_tick', null) ) ) ) )
 ```
+Looks little convoluted, but that's the safest method to ensure your app won't crash.
 
 ### `entity_event(e, event, function)`, `entity_event(e, event, call_name, ... args?)`
 
@@ -4233,7 +4422,275 @@ Returns size of the actual dropped items.
 inventory_drop(player(), 0, 1) => 1 // Q's one item on the ground
 inventory_drop(x,y,z, 0) => 64 // removed and spawned in the world a full stack of items
 </pre>
-# Scarpet events system
+
+## Screens
+
+A screen is a value type used to open screens for a player and interact with them.
+For example, this includes the chest inventory gui, the crafting table gui and many more.
+
+### `create_screen(player, type, name, callback?)`
+
+Creates and opens a screen for a `player`.
+
+Available `type`s:
+
+* `anvil`
+* `beacon`
+* `blast_furnace`
+* `brewing_stand`
+* `cartography_table`
+* `crafting`
+* `enchantment`
+* `furnace`
+* `generic_3x3`
+* `generic_9x1`
+* `generic_9x2`
+* `generic_9x3`
+* `generic_9x4`
+* `generic_9x5`
+* `generic_9x6`
+* `grindstone`
+* `hopper`
+* `lectern`
+* `loom`
+* `merchant`
+* `shulker_box`
+* `smithing`
+* `smoker`
+* `stonecutter`
+
+The `name` parameter can be a formatted text and will be displayed at the top of the screen.
+Some screens like the lectern or beacon screen don't show it.
+
+Optionally, a `callback` function can be passed as the fourth argument.
+This functions needs to have four parameters:
+`_(screen, player, action, data) -> ...`
+
+The `screen` parameter is the screen value of the screen itself.
+`player` is the player who interacted with the screen.
+`action` is a string corresponding to the interaction type.
+Can be any of the following:
+
+Slot interactions:
+
+* `pickup`
+* `quick_move`
+* `swap`
+* `clone`
+* `throw`
+* `quick_craft`
+* `pickup_all`
+
+The `data` for this interaction is a map, with a `slot` and `button` value.
+`slot` is the slot index of the slot that was clicked.
+When holding an item in the cursor stack and clicking inside the screen,
+but not in a slot, this is -1.
+If clicked outside the screen (where it would drop held items), this value is null.
+The `button` is the mouse button used to click the slot.
+
+For the `swap` action, the `button` is the number key 0-8 for a certain hotbar slot.
+
+For the `quick_craft` action, the `data` also contains the `quick_craft_stage`,
+which is either 0 (beginning of quick crafting), 1 (adding item to slot) or 2 (end of quick crafting).
+
+Other interactions:
+
+* `button` Pressing a button in certain screens that have button elements (enchantment table, lectern, loom and stonecutter)
+The `data` provides a `button`, which is the index of the button that was pressed.
+Note that for lecterns, this index can be certain a value above 100, for jumping to a certain page.
+This can come from formatted text inside the book, with a `change_page` click event action.
+
+* `close` Triggers when the screen gets closed. No `data` provided.
+
+* `select_recipe` When clicking on a recipe in the recipe book.
+`data` contains a `recipe`, which is the identifier of the clicked recipe,
+as well as `craft_all`, which is a boolean specifying whether
+shift was pressed when selecting the recipe.
+
+* `slot_update` Gets called **after** a slot has changed contents. `data` provides a `slot` and `stack`.
+
+By returning a string `'cancel'` in the callback function,
+the screen interaction can be cancelled.
+This doesn't work for the `close` action.
+
+The `create_screen` function returns a `screen` value,
+which can be used in all inventory related functions to access the screens' slots.
+The screen inventory covers all slots in the screen and the player inventory.
+The last slot is the cursor stack of the screen,
+meaning that using `-1` can be used to modify the stack the players' cursor is holding.
+
+### `close_screen(screen)`
+
+Closes the screen of the given screen value.
+Returns `true` if the screen was closed.
+If the screen is already closed, returns `false`.
+
+### `screen_property(screen, property)`
+
+### `screen_property(screen, property, value)`
+
+Queries or modifies a certain `property` of a `screen`.
+The `property` is a string with the name of the property.
+When called with `screen` and `property` parameter, returns the current value of the property.
+When specifying a `value`,
+the property will be assigned the new `value` and synced with the client.
+
+**Options for `property` string:**
+
+| `property` | Required screen type | Type | Description |
+|---|---|---|---|
+| `name` | **All** | text | The name of the screen, as specified in the `create_screen()` function. Can only be queried. |
+| `open` | **All** | boolean | Returns `true` if the screen is open, `false` otherwise. Can only be queried. |
+| `fuel_progress` | furnace/smoker/blast_furnace | number | Current value of the fuel indicator. |
+| `max_fuel_progress` | furnace/smoker/blast_furnace | number | Maximum value for the full fuel indicator. |
+| `cook_progress` | furnace/smoker/blast_furnace | number | Cooking progress indicator value. |
+| `max_cook_progress` | furnace/smoker/blast_furnace | number | Maximum value for the cooking progress indicator. |
+| `level_cost` | anvil | number | Displayed level cost for the anvil. |
+| `page` | lectern | number | Opened page in the lectern screen. |
+| `beacon_level` | beacon | number | The power level of the beacon screen. This affects how many effects under primary power are grayed out. Should be a value between 0-5. |
+| `primary_effect` | beacon | number | The effect id of the primary effect. This changes the effect icon on the button on the secondary power side next to the regeneration effect. |
+| `secondary_effect` | beacon | number | The effect id of the secondary effect. This seems to change nothing, but it exists. |
+| `brew_time` | brewing_stand | number | The brewing time indicator value. This goes from 0 to 400. |
+| `brewing_fuel` | brewing_stand | number | The fuel indicator progress. Values range between 0 to 20. |
+| `enchantment_power_x` | enchantment | number | The level cost of the shown enchantment. Replace `x` with 1, 2 or 3 (e.g. `enchantment_power_2`) to target the first, second or third enchantment. |
+| `enchantment_id_x` | enchantment | number | The id of the enchantment shown (replace `x` with the enchantment slot 1/2/3). |
+| `enchantment_level_x` | enchantment | number | The enchantment level of the enchantment. |
+| `enchantment_seed` | enchantment | number | The seed of the enchanting screen. This affects the text shown in the standard Galactic alphabet. |
+| `banner_pattern` | loom | number | The selected banner pattern inside the loom. |
+| `stonecutter_recipe` | stonecutter | number | The selected recipe in the stonecutter. |
+
+### Screen example scripts
+
+<details>
+<summary>Chest click event</summary>
+
+```py
+__command() -> (
+    create_screen(player(),'generic_9x6',format('db Test'),_(screen, player, action, data) -> (
+        print(player('all'),str('%s\n%s\n%s',player,action,data)); //for testing
+        if(action=='pickup',
+            inventory_set(screen,data:'slot',1,if(inventory_get(screen,data:'slot'),'air','red_stained_glass_pane'));
+        );
+        'cancel'
+    ));
+);
+```
+</details>
+
+<details>
+<summary>Anvil text prompt</summary>
+
+```py
+// anvil text prompt gui
+__command() -> (
+    global_screen = create_screen(player(),'anvil',format('r Enter a text'),_(screen, player, action, data)->(
+        if(action == 'pickup' && data:'slot' == 2,
+            renamed_item = inventory_get(screen,2);
+            nbt = renamed_item:2;
+            name = parse_nbt(nbt:'display':'Name'):'text';
+            if(!name, return('cancel')); //don't accept empty string
+            print(player,'Text: ' + name);
+            close_screen(screen);
+        );
+        'cancel'
+    ));
+    inventory_set(global_screen,0,1,'paper','{display:{Name:\'{"text":""}\'}}');
+);
+
+```
+</details>
+
+<details>
+<summary>Lectern flip book</summary>
+
+```py
+// flip book lectern
+
+global_fac = 256/60;
+curve(v) -> (
+    v = v%360;
+    if(v<60,v*global_fac,v<180,255,v<240,255-(v-180)*global_fac,0);
+);
+
+hex_from_hue(hue) -> str('#%02X%02X%02X',curve(hue+120),curve(hue),curve(hue+240));
+
+make_char(hue) -> str('{"text":"▉","color":"%s"}',hex_from_hue(hue));
+
+make_page(hue) -> (
+    page = '[';
+    loop(15, //row
+        y = _;
+        loop(14, //col
+            x = _;
+            page += make_char(hue+x*4+y*4) + ',';
+        );
+    );
+    return(slice(page,0,-2)+']');
+);
+
+
+__command() -> (
+    screen = create_screen(player(),'lectern','Lectern example (this text is not visible)',_(screen, player, action, data)->(
+        if(action=='button',
+            print(player,'Button: ' + data:'button');
+        );
+        'cancel'
+    ));
+
+    page_count = 60;
+    pages = [];
+
+    loop(page_count,
+        hue = _/page_count*360;
+        pages += make_page(hue);
+    );
+
+    nbt = encode_nbt({
+        'pages'-> pages,
+        'author'->'-',
+        'title'->'-',
+        'resolved'->1
+    });
+
+    inventory_set(screen,0,1,'written_book',nbt);
+
+    task(_(outer(screen),outer(page_count))->(
+        while(screen != null && screen_property(screen,'open'),100000,
+            p = (p+1)%page_count;
+            screen_property(screen,'page',p);
+            sleep(50);
+        );
+    ));
+);
+
+```
+</details>
+
+<details>
+<summary>generic_3x3 cursor stack</summary>
+
+```py
+__command() -> (
+    screen = create_screen(player(),'generic_3x3','Title',_(screen, player, action, data) -> (
+        if(action=='pickup',
+            // set slot to the cursor stack item
+            inventory_set(screen,data:'slot',1,inventory_get(screen,-1):0);
+        );
+        'cancel'
+    ));
+
+    task(_(outer(screen))->(
+        // keep the cursor stack item blinking
+        while(screen_property(screen,'open'),100000,
+            inventory_set(screen,-1,1,'red_concrete');
+            sleep(500);
+            inventory_set(screen,-1,1,'lime_concrete');
+            sleep(500);
+        );
+    ));
+);
+```
+</details># Scarpet events system
 
 Scarpet provides the ability to execute specific function whenever an event occurs. The functions to be subscribed for an event 
 need to conform with the arguments to the event specification. There are several built-in events triggered when certain in-game
@@ -4241,11 +4698,14 @@ events occur, but app designers can create their own events and trigger them acr
 
 When loading the app, each function that starts 
 with `__on_<event>` and has the required arguments, will be bound automatically to a corresponding built-in event. '`undef`'ying
-of such function would result in unbinding the app from this event.
+of such function would result in unbinding the app from this event. Defining event hanlder via `__on_<event>(... args) -> expr` is
+equivalent of defining it via `handle_event('<event>', _(... args) -> expr)`
 
 In case of `player` scoped apps, 
 all player action events will be directed to the appropriate player hosts. Global events, like `'tick'`, that don't have a specific
-player target will be executed multiple times, once for each player, and once in `'global'` scoped apps.
+player target will be executed multiple times, once for each player app instance. While each player app instance is independent,
+statically defined event handlers will be copied to each players app, but if you want to apply them in more controlled way, 
+defining event handlers for each player in `__on_start()` function is preferred.
 
 Most built-in events strive to report right before they take an effect in the game. The purpose of that is that this give a choice
 for the programmer to handle them right away (as it happens, potentially affect the course of action by changing the
@@ -4256,24 +4716,43 @@ more control over these events.
 
 Programmers can also define their own events and signal other events, including built-in events, and across all loaded apps.
 
-## Event list
+## App scopes and event distribution
 
-Here is a list of events that are handled by default in scarpet. This list includes prefixes for function names, allowing apps
-to autoload them, but you can always add any function to any event (using `/script event` command)
-if it accepts required number of parameters.
+Events triggered in an app can result in zero, one, or multiple executions, depending on the type of the event, and the app scope.
+ * player targeted events (like `player_breaks_block`) target each app once:
+   * for global scoped apps - targets a single app instance and provides `player` as the first argument.
+   * for player scoped apps - targets only a given player instance, providing player argument for API consistency, 
+     since active player in player scoped apps can always be retrived using `player()`. 
+ * global events could be handled by multiple players multiple times (like `explosion`, or `tick`):
+   * for global scoped apps - triggered once for the single app instance.
+   * for player scoped apps - triggered N times for each player separately, so they can do something with that information
+ * custom player targeted events (using `signal_event(<event>, <player>, data)`):
+   * for global scoped apps - doesn't trigger at all, since there is no way to pass the required player. 
+     To target global apps with player information, use `null` for player target, and add player information to the `data`
+   * for player scoped apps - triggers once for the specified player and its app instance
+ * custom general events (using `signal_event(<event>, null, data)`) behave same like built-in global events:
+   * for global scoped apps - triggers once for the only global instance
+   * for player scoped apps - triggers N times, once for each player app instance
+
+## Built-in events
+
+Here is the list of events that are handled by default in scarpet. This list includes prefixes for function names, allowing apps
+to register them when the app starts, but you can always add any handler function to any event using `/script event` command,
+if it accepts the required number of parameters for the event.
 
 ## Meta-events
 
 These events are not controlled / triggered by the game per se, but are important for the flow of the apps, however for all 
-intent and purpose can be treated as regular events. Unlike regular events, they cannot be hooked up to with 'handle_event',
-but the apps themselves need to have them defined as distinct function definitions, same they cannot be signalled.
+intent and purpose can be treated as regular events. Unlike regular events, they cannot be hooked up to with `handle_event()`,
+and the apps themselves need to have them defined as distinct function definitions. They also cannot be triggered via `signal_event()`.
 
 ### `__on_start()`
 Called once per app in its logical execution run. For `'global'` scope apps its executed right after the app is loaded. For
 `'player'` scope apps, it is triggered once per player before the app can be used by that player. Since each player app acts
 independently from other player apps, this is probably the best location to include some player specific initializations. Static
 code (i.e. code typed directly in the app code that executes immediately, outside of function definitions), will only execute once
-per app, regardless of scope, `'__on_start()'` allows to reliably call player specific initializations.
+per app, regardless of scope, `'__on_start()'` allows to reliably call player specific initializations. However, most event handlers
+defined in the static body of the app will be copied over to each player scoped instance when they join. 
 
 ### `__on_close()`
 
@@ -4285,8 +4764,7 @@ the system is closing down exceptionally.
 ## Built-in global events
 
 Global events will be handled once per app that is with `'global'` scope. With `player` scoped apps, each player instance
- is responsible independently from handling their events, so a global event may be executed multiple times for each player.
-
+ will be triggerd once for each player, so a global event may be executed multiple times for such apps.
 
 ### `__on_server_starts()`
 Event triggers after world is loaded and after all startup apps have started. It won't be triggered with `/reload`.
@@ -4305,10 +4783,17 @@ Duplicate of `tick`, just automatically located in the nether. Use `__on_tick() 
 ### `__on_tick_ender()` (Deprecated)
 Duplicate of `tick`, just automatically located in the end. Use `__on_tick() -> in_dimension('end', ... ` instead.
 
-### `__on_chunk_generated(x,z)`
+### `__on_chunk_generated(x, z)`
 Called right after a chunk at a given coordinate is full generated. `x` and `z` correspond
-to the lowest x and z coords in the chunk. Event may (or may not) work with Optifine installed
-at the same time.
+to the lowest x and z coords in the chunk. Handling of this event is scheduled as an off-tick task happening after the 
+chunk is confirmed to be generated and loaded to the game, due to the off-thread chunk loading in the game. So 
+handling of this event is not technically guaranteed if the game crashes while players are moving for example, and the game 
+decides to shut down after chunk is fully loaded and before its handler is processed in between ticks. In normal operation
+this should not happen, but let you be warned.
+
+### `__on_chunk_loaded(x, z)`
+Called right after a chunk at a given coordinate is loaded. All newly generated chunks are considered loaded as well.
+ `x` and `z` correspond to the lowest x and z coordinates in the chunk.
 
 ### `__on_lightning(block, mode)`
 Triggered right after a lightning strikes. Lightning entity as well as potential horseman trap would 
@@ -4331,7 +4816,7 @@ The parameter `entities` contains the list of entities that have been affected b
 Triggered when a carpet mod rule is changed. It includes extension rules, not using default `/carpet` command, 
 which will then be namespaced as `namespace:rule`.
 
-### entity load event -> check `entity_load_handler()`
+### Entity load event -> check in details on `entity_load_handler()`
 
 These will trigger every time an entity of a given type is loaded into the game: spawned, added with a chunks, 
 spawned from commands, anything really. Check `entity_load_handler()` in the entity section for details.
@@ -4481,6 +4966,9 @@ Triggered when the player has successfully logged in and was placed in the game.
 
 ### `__on_player_disconnects(player, reason)`
 Triggered when a player sends a disconnect package or is forcefully disconnected from the server.
+
+### `__on_player_message(player, message)`
+Triggered when a player sends a chat message or runs a command.
 
 ### `__on_statistic(player, category, event, value)`
 Triggered when a player statistic changes. Doesn't notify on periodic an rhythmic events, i.e. 
@@ -5038,6 +5526,8 @@ Decorators (listed as extra argument after the component they would affect):
  * `'^<format> <text>'` - hover over tooltip text, appearing when hovering with your mouse over the text below.
  * `'?<suggestion>` - command suggestion - a message that will be pasted to chat when text below it is clicked.
  * `'!<message>'` - a chat message that will be executed when the text below it is clicked.
+ * `'@<url>'` - a URL that will be opened when the text below it is clicked.
+ * `'&<text>'` - a text that will be copied to clipboard when the text below it is clicked.
  
 Both suggestions and messages can contain a command, which will be executed as a player that clicks it.
 
@@ -5215,13 +5705,13 @@ Returns `true` if creation and loading of the datapack was successful. Loading o
 reloading of all other datapacks (vanilla restrictions, identical to /datapack enable), however unlike with `/reload` 
 command, scarpet apps will not be reloaded by adding a datapack using `create_datapack`.
 
-Currently, only json files are supported in the packs. `'pack.mcmeta'` file is added automatically.
+Currently, only json/nbt/mcfunction files are supported in the packs. `'pack.mcmeta'` file is added automatically.
 
 Reloading of datapacks that define new dimensions is not implemented in vanilla. Vanilla game only loads 
 dimension information on server start. `create_datapack` is therefore a direct replacement of manually ploping of the specified 
 file structure in a datapack file and calling `/datapack enable` on the new datapack with all its quirks and sideeffects
 (like no worldgen changes, reloading all other datapacks, etc.). To enable newly added custom dimensions, call much more
-experimental `check_hidden_dimensions()` after adding a datapack if needed.
+experimental `enable_hidden_dimensions()` after adding a datapack if needed.
 
 Synopsis:
 <pre>
@@ -5239,6 +5729,7 @@ script run create_datapack('foo',
 
 Custom dimension example:
 <pre>
+// 1.17
 script run create_datapack('funky_world',  {
     'data' -> { 'minecraft' -> { 'dimension' -> { 'custom_ow.json' -> { 
         'type' -> 'minecraft:the_end',
@@ -5253,7 +5744,36 @@ script run create_datapack('funky_world',  {
             'type' -> 'minecraft:noise'
     } } } } }
 });
-check_hidden_dimensions();  => ['funky_world']
+
+// 1.18
+script run a() -> create_datapack('funky_world',  {
+   'data' -> { 'minecraft' -> { 'dimension' -> { 'custom_ow.json' -> { 
+      'type' -> 'minecraft:overworld',
+         'generator' -> {
+            'biome_source' -> {
+               'biomes' -> [
+                  {
+                     'parameters' -> {                        
+                        'erosion' -> [-1.0,1.0], 
+                        'depth' -> 0.0, 
+                        'weirdness' -> [-1.0,1.0],
+                        'offset' -> 0.0,
+                        'temperature' -> [-1.0,1.0],
+                        'humidity' -> [-1.0,1.0],
+                        'continentalness' -> [ -1.2,-1.05]
+                     },
+                     'biome' -> 'minecraft:mushroom_fields'
+                  }
+               ],
+               'type' -> 'minecraft:multi_noise'
+            },
+            'seed' -> 0,
+            'settings' -> 'minecraft:overworld',
+            'type' -> 'minecraft:noise'
+         }
+     } } } }
+});
+enable_hidden_dimensions();  => ['funky_world']
 </pre>
 
 Loot table example:
@@ -5302,7 +5822,11 @@ script run create_datapack('craftable_cobwebs', {
 });
 </pre>
 
-### `enable_hidden_dimensions()`
+Function example:
+<pre>
+ script run create_datapack('example',{'data/test/functions/talk.mcfunction'->'say 1\nsay 2'})
+</pre>
+### `enable_hidden_dimensions()` (1.18.1 and lower)
 
 The function reads current datapack settings detecting new dimensions defined by these datapacks that have not yet been added
 to the list of current dimensions and adds them so that they can be used and accessed right away. It doesn't matter how the
@@ -5310,7 +5834,8 @@ datapacks have been added to the game, either with `create_datapack()` or manual
 `/datapack enable` on it. Returns the list of valid dimension names / identifiers that has been added in the process.
 
 Fine print: The function should be
-considered experimental. There 'should not be' (famous last words) any side-effects if no worlds are added. Already connected
+considered experimental. For example: is not supposed to work at all in vanilla, and its doing exactly that in 1.18.2+.
+There 'should not be' (famous last words) any side-effects if no worlds are added. Already connected
 clients will not see suggestions for commands that use dimensions `/execute in <dim>` (vanilla client limitation) 
 but all commands should work just fine with
 the new dimensions. Existing worlds that have gotten modified settings by the datapacks will not be reloaded or replaced.
@@ -5326,6 +5851,8 @@ Returns server tick counter. Can be used to run certain operations every n-th ti
 
 ### `world_time()`
 
+_**Deprecated**. Use `system_info('world_time')` instead._
+
 Returns dimension-specific tick counter.
 
 ### `day_time(new_time?)`
@@ -5334,6 +5861,8 @@ Returns current daytime clock value. If `new_time` is specified, sets a new cloc
 to that value. Daytime clocks are shared between all dimensions.
 
 ### `last_tick_times()`
+
+_**Deprecated**. Use `system_info('server_last_tick_times')` instead._
 
 Returns a 100-long array of recent tick times, in milliseconds. First item on the list is the most recent tick
 If called outside of the main tick (either throgh scheduled tasks, or async execution), then the first item on the
@@ -5386,6 +5915,9 @@ world-localized block, so not `block('stone')`, or a string representing a dimen
 Throws `unknown_dimension` if provided dimension can't be found.
  
 ### `view_distance()`
+
+_**Deprecated**. Use `system_info('game_view_distance')` instead._
+
 Returns the view distance of the server.
 
 ### `get_mob_counts()`, `get_mob_counts(category)` 1.16+
@@ -5426,17 +5958,18 @@ it could either mean your input is wrong, or statistic effectively has a value o
 
 
 ### `system_info()`, `system_info(property)`
-Fetches the value of a system property or returns all inforation as a map when called without any arguments. It can be used to 
+Fetches the value of one of the following system properties. If called without arguments, it returns a list of 
+available system_info options. It can be used to 
 fetch various information, mostly not changing, or only available via low level
 system calls. In all circumstances, these are only provided as read-only.
 
-Available options in the scarpet app space:
+##### Available options in the scarpet app space:
   * `app_name` - current app name or `null` if its a default app
   * `app_list` - list of all loaded apps excluding default commandline app
   * `app_scope` - scope of the global variables and function. Available options is `player` and `global`
-  * `app_player` - returns a player list that have app run under them. For `global` apps, the list is always empty
+  * `app_players` - returns a player list that have app run under them. For `global` apps, the list is always empty
  
- Relevant world related properties
+##### Relevant world related properties
   * `world_name` - name of the world
   * `world_seed` - a numeric seed of the world
   * `world_dimensions` - a list of dimensions in the world
@@ -5444,9 +5977,15 @@ Available options in the scarpet app space:
   * `world_folder` - name of the direct folder in the saves that holds world files
   * `world_carpet_rules` - returns all Carpet rules in a map form (`rule`->`value`). Note that the values are always returned as strings, so you can't do boolean comparisons directly. Includes rules from extensions with their namespace (`namespace:rule`->`value`). You can later listen to rule changes with the `on_carpet_rule_changes(rule, newValue)` event.
   * `world_gamerules` - returns all gamerules in a map form (`rule`->`value`). Like carpet rules, values are returned as strings, so you can use appropriate value conversions using `bool()` or `number()` to convert them to other values. Gamerules are read-only to discourage app programmers to mess up with the settings intentionally applied by server admins. Isn't that just super annoying when a datapack messes up with your gamerule settings? It is still possible to change them though using `run('gamerule ...`.
-  * `world_spawn_point` - world spawn point
-
- Relevant gameplay related properties
+  * `world_spawn_point` - world spawn point in the overworld dimension
+  * `world_time` - Returns dimension-specific tick counter.
+  * `world_top` - Returns current dimensions' topmost Y value where one can place blocks.
+  * `world_bottom` - Returns current dimensions' bottommost Y value where one can place blocks.
+  * `world_center` - Returns coordinates of the center of the world with respect of the world border
+  * `world_size` - Returns radius of world border for current dimension.
+  * `world_max_size` - Returns maximum possible radius of world border for current dimension.
+  * 
+##### Relevant gameplay related properties
   * `game_difficulty` - current difficulty of the game: `'peaceful'`, `'easy'`, `'normal'`, or `'hard'`
   * `game_hardcore` - boolean whether the game is in hardcore mode
   * `game_storage_format` - format of the world save files, either `'McRegion'` or `'Anvil'`
@@ -5457,13 +5996,13 @@ Available options in the scarpet app space:
   * `game_version` - base version of the game
   * `game_target` - target release version
   * `game_major_target` - major release target. For 1.12.2, that would be 12
-  * `game_minor_reease` - minor release target. For 1.12.2, that woudl be 2
+  * `game_minor_release` - minor release target. For 1.12.2, that would be 2
   * `game_protocol` - protocol version number
   * `game_pack_version` - datapack version number
   * `game_data_version` - data version of the game. Returns an integer, so it can be compared.
   * `game_stable` - indicating if its a production release or a snapshot
   
- Server related properties
+##### Server related properties
  * `server_motd` - the motd of the server visible when joining
  * `server_ip` - IP adress of the game hosted
  * `server_whitelisted` - boolean indicating whether the access to the server is only for whitelisted players
@@ -5472,8 +6011,27 @@ Available options in the scarpet app space:
  * `server_banned_ips` - list of banned IP addresses
  * `server_dev_environment` - boolean indicating whether this server is in a development environment.
  * `server_mods` - map with all loaded mods mapped to their versions as strings
+ * `server_last_tick_times` - Returns a 100-long array of recent tick times, in milliseconds. First item on the list is the most recent tick
+If called outside of the main tick (either throgh scheduled tasks, or async execution), then the first item on the
+list may refer to the previous tick performance. In this case the last entry (tick 100) would refer to the most current
+tick. For all intent and purpose, `system_info('last_tick_times'):0` should be used as last tick execution time, but
+individual tick times may vary greatly, and these need to be taken with the little grain of averaging.
  
- System related properties
+##### Source related properties
+ 
+ The source is what is the cause of the code running, with Carpet using it same way as Minecraft commands use to run. Those are used in
+ some API functions that interact with the game or with commands, and can be manipulated if the execution is caused by an `execute` command, modified
+ by some functions or ran in non-standard ways. This section provides useful information from these cases (like running from a command
+ block, right clicking a sign, etc)
+ * `source_entity` - The entity associated with the execution. This is usually a player (in which case `player()` would get the entity from this),
+                         but it may also be a different entity or `null` if the execution comes from the server console or a command block.
+ * `source_position` - The position associated with the execution. This is usually the position of the entity, but it may have been manipulated or
+                           it could come from a command block (no entity then). If this call comes from the server console, it will be the world spawn.
+ * `source_dimension` - The dimension associated with the execution. Execution from the server console provides `overworld` as the dimension.
+                            This can be manipulated by running code inside `in_dimension()`.
+ * `source_rotation` - The rotation associated with the execution. Usually `[0, 0]` in non-standard situations, the rotation of the entity otherwise.
+ 
+##### System related properties
  * `java_max_memory` - maximum allowed memory accessible by JVM
  * `java_allocated_memory` - currently allocated memory by JVM
  * `java_used_memory` - currently used memory by JVM
@@ -5483,7 +6041,7 @@ Available options in the scarpet app space:
  * `java_system_cpu_load` - current percentage of CPU used by the system
  * `java_process_cpu_load` - current percentage of CPU used by JVM
  
- Scarpet related properties
+##### Scarpet related properties
  * `scarpet_version` - returns the version of the carpet your scarpet comes with.
 
 ## NBT Storage

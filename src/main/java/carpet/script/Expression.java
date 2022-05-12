@@ -33,8 +33,6 @@ import carpet.script.value.FunctionValue;
 import carpet.script.value.NumericValue;
 import carpet.script.value.StringValue;
 import carpet.script.value.Value;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.math.BigInteger;
@@ -98,7 +96,7 @@ public class Expression
         functionalEquivalence.put(operator, function);
     }
 
-    private final Map<String, Value> constants = ImmutableMap.of(
+    private final Map<String, Value> constants = Map.of(
             "euler", Arithmetic.euler,
             "pi", Arithmetic.PI,
             "null", Value.NULL,
@@ -379,7 +377,7 @@ public class Expression
         if (exc instanceof ResolvedException)
             return exc;
         // unexpected really - should be caught earlier and converted to InternalExpressionException
-        exc.printStackTrace();
+        CarpetSettings.LOG.error("Unexpected exception while running Scarpet code", exc);
         return new ExpressionException(c, e, token, "Error while evaluating expression: "+exc);
     }
 
@@ -470,6 +468,12 @@ public class Expression
         addUnaryFunction(name, (v) -> new NumericValue(fun.apply(NumericValue.asNumber(v).getDouble())));
     }
 
+    public void addMathematicalBinaryIntFunction(String name, BiFunction<Long, Long, Long> fun)
+    {
+        addBinaryFunction(name, (w, v) ->
+                new NumericValue(fun.apply(NumericValue.asNumber(w).getLong(), NumericValue.asNumber(v).getLong())));
+    }
+	
     public void addMathematicalBinaryFunction(String name, BiFunction<Double, Double, Double> fun)
     {
         addBinaryFunction(name, (w, v) ->
@@ -477,9 +481,45 @@ public class Expression
     }
 
 
-    public void addLazyFunction(String name, int num_params, TriFunction<Context, Context.Type, List<LazyValue>, LazyValue> fun)
+    public void addLazyFunction(String name, int numParams, TriFunction<Context, Context.Type, List<LazyValue>, LazyValue> fun)
     {
-        functions.put(name, new AbstractLazyFunction(num_params, name)
+        functions.put(name, new AbstractLazyFunction(numParams, name)
+        {
+            @Override
+            public boolean pure() {
+                return false;
+            }
+
+            @Override
+            public boolean transitive() {
+                return false;
+            }
+
+            @Override
+            public LazyValue lazyEval(Context c, Context.Type i, Expression e, Tokenizer.Token t, List<LazyValue> lazyParams)
+            {
+                ILazyFunction.checkInterrupts();
+                if (numParams >= 0 && lazyParams.size() != numParams)
+                {
+                    String error = "Function '"+name+"' requires "+numParams+" arguments, got "+lazyParams.size()+". ";
+                    throw new InternalExpressionException(error + (fun instanceof Fluff.UsageProvider up ? up.getUsage() : ""));
+                }
+
+                try
+                {
+                    return fun.apply(c, i, lazyParams);
+                }
+                catch (RuntimeException exc)
+                {
+                    throw handleCodeException(c, exc, e, t);
+                }
+            }
+        });
+    }
+
+    public void addLazyFunction(String name, TriFunction<Context, Context.Type, List<LazyValue>, LazyValue> fun)
+    {
+        functions.put(name, new AbstractLazyFunction(-1, name)
         {
             @Override
             public boolean pure() {
@@ -698,7 +738,7 @@ public class Expression
         }
         var = c.host.getGlobalVariable(module, name);
         if (var != null) return var;
-        var = (_c, _t ) -> Value.ZERO.reboundedTo(name);
+        var = (_c, _t ) -> _c.host.strict ? Value.UNDEF.reboundedTo(name) : Value.NULL.reboundedTo(name);
         setAnyVariable(c, name, var);
         return var;
     }
@@ -972,7 +1012,7 @@ public class Expression
                     final ExpressionNode v1 = nodeStack.pop();
                     final ExpressionNode v2 = nodeStack.pop();
                     LazyValue result = (c,t) -> operators.get(token.surface).lazyEval(c, t,this, token, v2.op, v1.op).evalValue(c, t);
-                    nodeStack.push(new ExpressionNode(result, ImmutableList.of(v2, v1), token ));
+                    nodeStack.push(new ExpressionNode(result, List.of(v2, v1), token ));
                     break;
                 case VARIABLE:
                     Value constant = getConstantFor(token.surface);
@@ -1074,7 +1114,8 @@ public class Expression
             return root.op;
 
         Context optimizeOnlyContext = new Context.ContextForErrorReporting(context);
-        CarpetScriptServer.LOG.info("Input code size for "+getModuleName()+": " + treeSize(root) + " nodes, " + treeDepth(root) + " deep");
+        if (CarpetSettings.scriptsDebugging)
+            CarpetScriptServer.LOG.info("Input code size for "+getModuleName()+": " + treeSize(root) + " nodes, " + treeDepth(root) + " deep");
 
         boolean changed = true;
         while(changed) {
@@ -1085,7 +1126,8 @@ public class Expression
                 boolean optimized = compactTree(root, Context.Type.NONE, 0);
                 if (!optimized) break;
                 changed = true;
-                CarpetScriptServer.LOG.info("Compacted from " + tree_size + " nodes, " + tree_depth + " code depth to " + treeSize(root) + " nodes, " + treeDepth(root) + " code depth");
+                if (CarpetSettings.scriptsDebugging)
+                    CarpetScriptServer.LOG.info("Compacted from " + tree_size + " nodes, " + tree_depth + " code depth to " + treeSize(root) + " nodes, " + treeDepth(root) + " code depth");
             }
             while (true) {
                 int tree_size = treeSize(root);
@@ -1093,7 +1135,8 @@ public class Expression
                 boolean optimized = optimizeTree(optimizeOnlyContext, root, Context.Type.NONE, 0);
                 if (!optimized) break;
                 changed = true;
-                CarpetScriptServer.LOG.info("Optimized from " + tree_size + " nodes, " + tree_depth + " code depth to " + treeSize(root) + " nodes, " + treeDepth(root) + " code depth");
+                if (CarpetSettings.scriptsDebugging)
+                    CarpetScriptServer.LOG.info("Optimized from " + tree_size + " nodes, " + tree_depth + " code depth to " + treeSize(root) + " nodes, " + treeDepth(root) + " code depth");
             }
         }
         return extractOp(optimizeOnlyContext, root, Context.Type.NONE);
@@ -1161,20 +1204,28 @@ public class Expression
         for (Map.Entry<String, String> pair : functionalEquivalence.entrySet()) {
             String operator = pair.getKey();
             String function = pair.getValue();
-            if (symbol.equals(operator) || symbol.equals(function)) {
-                List<ExpressionNode> newargs = new ArrayList<>();
-                boolean contracted = false;
-                for (ExpressionNode arg : node.args) {
-                    String argsymbol = arg.token.surface; // child is unoptimized and also same class
-                    if ((argsymbol.equals(operator) || argsymbol.equals(function)) && (!(arg.op instanceof LazyValue.ContextFreeLazyValue))) {
-                        newargs.addAll(arg.args);
-                        contracted = true;
-                    } else {
-                        newargs.add(arg);
-                    }
-                }
-                if (contracted) {
+            if ((symbol.equals(operator) || symbol.equals(function)) && node.args.size() > 0)
+            {
+                boolean leftOptimizable = operators.get(operator).isLeftAssoc();
+                ExpressionNode optimizedChild = node.args.get(leftOptimizable?0:(node.args.size()-1));
+                String type = optimizedChild.token.surface;
+                if ((type.equals(operator) || type.equals(function)) && (!(optimizedChild.op instanceof LazyValue.ContextFreeLazyValue)))
+                {
                     optimized = true;
+                    List<ExpressionNode> newargs = new ArrayList<>();
+                    if (leftOptimizable)
+                    {
+                        newargs.addAll(optimizedChild.args);
+                        for (int i = 1; i < node.args.size(); i++)
+                            newargs.add(node.args.get(i));
+                    }
+                    else
+                    {
+                        for (int i = 0; i < node.args.size()-1; i++)
+                            newargs.add(node.args.get(i));
+                        newargs.addAll(optimizedChild.args);
+                    }
+
                     if (CarpetSettings.scriptsDebugging)
                         CarpetScriptServer.LOG.info(" - " + symbol + "(" + node.args.size() + ") => " + function + "(" + newargs.size() + ") at line " + (node.token.lineno + 1) + ", node depth " + indent);
                     node.token.morph(Tokenizer.Token.TokenType.FUNCTION, function);
@@ -1207,6 +1258,7 @@ public class Expression
             if (arg.op instanceof LazyValue.ContextFreeLazyValue) continue;
             return optimized;
         }
+        // a few exceptions which we don't implement in the framework for simplicity for now
         if (!operation.pure())
         {
             if (symbol.equals("->") && expectedType == Context.Type.MAPDEF)
@@ -1215,6 +1267,14 @@ public class Expression
             }
             else {
                 return optimized;
+            }
+        }
+        if (operation.pure())
+        {
+            // element access with constant elements will always resolve the same way.
+            if (symbol.equals(":") && expectedType == Context.Type.LVALUE)
+            {
+                expectedType = Context.Type.NONE;
             }
         }
         List<LazyValue> args = new ArrayList<>(node.args.size());
