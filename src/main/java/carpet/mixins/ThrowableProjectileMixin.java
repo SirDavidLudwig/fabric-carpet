@@ -33,7 +33,7 @@ public abstract class ThrowableProjectileMixin extends Entity
     }
 
     @Override
-    public void remove(Entity.RemovalReason arg)
+    public void remove(RemovalReason arg)
     {
         super.remove(arg);
         if (LoggerRegistry.__projectiles && logHelper != null)

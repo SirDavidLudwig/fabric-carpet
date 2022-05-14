@@ -15,8 +15,6 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.BaseComponent;
@@ -25,6 +23,8 @@ import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.util.TriConsumer;
 
@@ -61,7 +61,7 @@ import static net.minecraft.commands.Commands.literal;
 /**
  * Manages and parses Carpet rules with their own command.
  * @see #SettingsManager(String, String, String)
- * 
+ *
  */
 public class SettingsManager
 {
@@ -83,7 +83,7 @@ public class SettingsManager
     /**
      * Creates a new {@link SettingsManager} without a fancy name.
      * @see #SettingsManager(String, String, String)
-     * 
+     *
      * @param version A {@link String} with the mod's version
      * @param identifier A {@link String} with the mod's id, will be the command name
      */
@@ -97,7 +97,7 @@ public class SettingsManager
     /**
      * Creates a new {@link SettingsManager} with a fancy name
      * @see #SettingsManager(String, String)
-     * 
+     *
      * @param version A {@link String} with the mod's version
      * @param identifier A {@link String} with the mod's id, will be the command name
      * @param fancyName A {@link String} being the mod's fancy name.
@@ -110,13 +110,13 @@ public class SettingsManager
     }
 
     /**
-     * @return A {@link String} being this {@link SettingsManager}'s 
+     * @return A {@link String} being this {@link SettingsManager}'s
      *         identifier, which is also the command name
      */
     public String getIdentifier() {
         return identifier;
     }
-    
+
     /**
      * Attaches a {@link MinecraftServer} to this {@link SettingsManager}.<br>
      * This is handled automatically by Carpet
@@ -140,8 +140,8 @@ public class SettingsManager
     }
 
     /**
-     * Adds all annotated fields with the {@link Rule} annotation 
-     * to this {@link SettingsManager} in order to handle them. 
+     * Adds all annotated fields with the {@link Rule} annotation
+     * to this {@link SettingsManager} in order to handle them.
      * @param settingsClass The class that will be analyzed
      */
     public void parseSettingsClass(Class settingsClass)
@@ -169,10 +169,10 @@ public class SettingsManager
     }
 
     /**
-     * Adds a custom rule observer to changes in rules from 
+     * Adds a custom rule observer to changes in rules from
      * <b>this specific</b> {@link SettingsManager} instance.
      * @see SettingsManager#addGlobalRuleObserver(TriConsumer)
-     * 
+     *
      * @param observer A {@link TriConsumer} that will be called with
      *                 the used {@link CommandSourceStack}, the changed
      *                 {@link ParsedRule} and a {@link String} being the
@@ -182,12 +182,12 @@ public class SettingsManager
     {
         observers.add(observer);
     }
-    
+
     /**
-     * Adds a custom rule observer to changes in rules from 
+     * Adds a custom rule observer to changes in rules from
      * <b>any</b> registered {@link SettingsManager} instance.
      * @see SettingsManager#addRuleObserver(TriConsumer)
-     * 
+     *
      * @param observer A {@link TriConsumer} that will be called with
      *                 the used {@link CommandSourceStack}, the changed
      *                 {@link ParsedRule} and a {@link String} being the
@@ -207,7 +207,7 @@ public class SettingsManager
         switchScarpetRuleIfNeeded(source, rule);
         if (CARPET_RULE_CHANGES.isNeeded()) CARPET_RULE_CHANGES.onCarpetRuleChanges(rule, source);
     }
-    
+
     private void switchScarpetRuleIfNeeded(CommandSourceStack source, ParsedRule<?> rule)
     {
         if (!rule.scarpetApp.isEmpty())
@@ -220,7 +220,7 @@ public class SettingsManager
             }
         }
     }
-    
+
     /**
      * Initializes Scarpet rules in this {@link SettingsManager}, if any.<br>
      * This is handled automatically by Carpet.
@@ -277,7 +277,7 @@ public class SettingsManager
     }
 
     /**
-     * @return A collection of {@link ParsedRule} that are not in 
+     * @return A collection of {@link ParsedRule} that are not in
      *         their default value
      */
     public Collection<ParsedRule<?>> getNonDefault()
@@ -352,7 +352,7 @@ public class SettingsManager
      * a command given the required permission level, according to
      * Carpet's standard for permissions.
      * @param source The origin {@link CommandSourceStack}
-     * @param commandLevel A {@link String} being the permission level (either 0-4, a 
+     * @param commandLevel A {@link String} being the permission level (either 0-4, a
      *                     {@link boolean} value or "ops".
      * @return Whether or not the {@link CommandSourceStack} meets the required level
      */
@@ -376,8 +376,8 @@ public class SettingsManager
     }
 
     /**
-     * @param commandLevel A {@link String} being a permission level according to 
-     *                     Carpet's standard for permissions (either 0-4, a {@link boolean}, 
+     * @param commandLevel A {@link String} being a permission level according to
+     *                     Carpet's standard for permissions (either 0-4, a {@link boolean},
      *                     or "ops".
      * @return An {@link int} with the translated Vanilla permission level
      */
@@ -462,9 +462,9 @@ public class SettingsManager
         }
         catch (NoSuchFileException e)
         {
-            if (path.equals(getFile()) && FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT)
+            if (path.equals(getFile()) && FMLEnvironment.dist == Dist.CLIENT)
             {
-                Path defaultsPath = FabricLoader.getInstance().getConfigDir().resolve("carpet/default_"+identifier+".conf");
+                Path defaultsPath = Path.of("config/carpet/default_"+identifier+".conf"); // FabricLoader.getInstance().getConfigDir().resolve("carpet/default_"+identifier+".conf");
                 try {
                     if (Files.notExists(defaultsPath))
                     {

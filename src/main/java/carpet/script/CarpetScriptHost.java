@@ -33,12 +33,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
-import net.fabricmc.loader.api.SemanticVersion;
-import net.fabricmc.loader.api.Version;
-import net.fabricmc.loader.api.VersionParsingException;
-import net.fabricmc.loader.api.metadata.version.VersionPredicate;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.Tag;
@@ -375,12 +369,12 @@ public class CarpetScriptHost extends ScriptHost
             if (!(arguments instanceof MapValue))
                 throw CommandArgument.error("'arguments' element in config should be a map");
             appArgTypes.clear();
-            for (Map.Entry<Value, Value> typeData : ((MapValue)arguments).getMap().entrySet())
+            for (Entry<Value, Value> typeData : ((MapValue)arguments).getMap().entrySet())
             {
                 String argument = typeData.getKey().getString();
                 Value spec = typeData.getValue();
                 if (!(spec instanceof MapValue)) throw CommandArgument.error("Spec for '"+argument+"' should be a map");
-                Map<String, Value> specData = ((MapValue) spec).getMap().entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getString(), Map.Entry::getValue));
+                Map<String, Value> specData = ((MapValue) spec).getMap().entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getString(), Entry::getValue));
                 appArgTypes.put(argument, CommandArgument.buildFromConfig(argument, specData, this));
             }
         }
@@ -430,28 +424,28 @@ public class CarpetScriptHost extends ScriptHost
             throw new InternalExpressionException("`requires` field must be a map of mod dependencies or a function to be executed");
         }
         Map<Value, Value> requirements = ((MapValue)reqs).getMap();
-        for (Entry<Value, Value> requirement : requirements.entrySet())
-        {
-            String requiredModId = requirement.getKey().getString();
-            String stringPredicate = requirement.getValue().getString();
-            VersionPredicate predicate;
-            try {
-                predicate = VersionPredicate.parse(stringPredicate);
-            } catch (VersionParsingException e) {
-                throw new InternalExpressionException("Failed to parse version conditions for '" + requiredModId + "' in 'requires': " + e.getMessage());
-            }
-
-            ModContainer mod = FabricLoader.getInstance().getModContainer(requiredModId).orElse(null);
-            if (mod != null)
-            {
-                Version presentVersion = mod.getMetadata().getVersion();
-                if (predicate.test(presentVersion) || (FabricLoader.getInstance().isDevelopmentEnvironment() && !(presentVersion instanceof SemanticVersion)))
-                { // in a dev env, mod version is usually replaced with ${version}, and that isn't semantic
-                    continue;
-                }
-            }
-            throw new LoadException(String.format("%s requires a version of mod '%s' matching '%s', which is missing!", getName(), requiredModId, stringPredicate));
-        }
+//        for (Entry<Value, Value> requirement : requirements.entrySet())
+//        {
+//            String requiredModId = requirement.getKey().getString();
+//            String stringPredicate = requirement.getValue().getString();
+//            VersionPredicate predicate;
+//            try {
+//                predicate = VersionPredicate.parse(stringPredicate);
+//            } catch (VersionParsingException e) {
+//                throw new InternalExpressionException("Failed to parse version conditions for '" + requiredModId + "' in 'requires': " + e.getMessage());
+//            }
+//
+//            ModContainer mod = FabricLoader.getInstance().getModContainer(requiredModId).orElse(null);
+//            if (mod != null)
+//            {
+//                Version presentVersion = mod.getMetadata().getVersion();
+//                if (predicate.test(presentVersion) || (FabricLoader.getInstance().isDevelopmentEnvironment() && !(presentVersion instanceof SemanticVersion)))
+//                { // in a dev env, mod version is usually replaced with ${version}, and that isn't semantic
+//                    continue;
+//                }
+//            }
+//            throw new LoadException(String.format("%s requires a version of mod '%s' matching '%s', which is missing!", getName(), requiredModId, stringPredicate));
+//        }
     }
 
     private Boolean addLegacyCommand(Consumer<Component> notifier)
@@ -539,7 +533,7 @@ public class CarpetScriptHost extends ScriptHost
             throw CommandArgument.error("'commands' element in config should be a map");
         List<Pair<List<CommandToken>,FunctionArgument>> commandEntries = new ArrayList<>();
 
-        for (Map.Entry<Value, Value> commandsData : ((MapValue)commands).getMap().entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList()))
+        for (Entry<Value, Value> commandsData : ((MapValue)commands).getMap().entrySet().stream().sorted(Entry.comparingByKey()).collect(Collectors.toList()))
         {
             List<CommandToken> elements = CommandToken.parseSpec(commandsData.getKey().getString(), this);
             FunctionArgument funSpec = FunctionArgument.fromCommandSpec(this, commandsData.getValue());

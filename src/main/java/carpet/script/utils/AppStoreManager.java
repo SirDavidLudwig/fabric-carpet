@@ -14,7 +14,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandRuntimeException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.world.level.storage.LevelResource;
@@ -305,7 +304,7 @@ public class AppStoreManager
         Path scriptLocation;
         if (globalSavePath && !source.getServer().isDedicatedServer()) // never happens, this is always called with globalSavePath being false
         { //cos config folder only is in clients
-            scriptLocation = FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts/appstore").toAbsolutePath().resolve(path);
+            scriptLocation = Path.of("config/carpet/scripts/appstore").toAbsolutePath().resolve(path); // FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts/appstore").toAbsolutePath().resolve(path);
         }
         else
         {

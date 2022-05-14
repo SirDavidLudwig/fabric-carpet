@@ -11,12 +11,12 @@ import net.minecraft.world.entity.animal.horse.SkeletonTrapGoal;
 @Mixin(SkeletonTrapGoal.class)
 public class SkeletonTrapGoal_extremeMixin
 {
-    @Redirect(method = "tick", expect = 2, at = @At(
-            value = "INVOKE",
-            target = "Ljava/util/Random;nextGaussian()D"
-    ))
-    private double nextGauBian(Random random)
-    {
-        return RandomTools.nextGauBian(random);
-    }
+//    @Redirect(method = "tick", expect = 2, at = @At(
+//            value = "INVOKE",
+//            target = "Ljava/util/Random;nextGaussian()D"
+//    ))
+//    private double nextGauBian(Random random)
+//    {
+//        return RandomTools.nextGauBian(random);
+//    }
 }

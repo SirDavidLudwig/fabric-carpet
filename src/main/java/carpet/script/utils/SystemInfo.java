@@ -15,14 +15,18 @@ import carpet.script.value.ValueConversions;
 import carpet.settings.ParsedRule;
 import carpet.settings.SettingsManager;
 import com.sun.management.OperatingSystemMXBean;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.SharedConstants;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.Vec2;
+import net.minecraftforge.common.ForgeMod;
+import net.minecraftforge.common.modloading.ForgeModStateProvider;
+import net.minecraftforge.fml.ModContainer;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.forgespi.language.IModInfo;
+
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -126,11 +130,12 @@ public class SystemInfo {
             }
             return whitelist;
         });
-        put("server_dev_environment", c-> BooleanValue.of(FabricLoader.getInstance().isDevelopmentEnvironment()));
+        put("server_dev_environment", c-> BooleanValue.of( false /*FabricLoader.getInstance().isDevelopmentEnvironment()*/));
         put("server_mods", c -> {
             Map<Value, Value> ret = new HashMap<>();
-            for (ModContainer mod : FabricLoader.getInstance().getAllMods())
-                ret.put(new StringValue(mod.getMetadata().getName()), new StringValue(mod.getMetadata().getVersion().getFriendlyString()));
+            // @CHANGED
+            for (IModInfo mod : ModList.get().getMods())
+                ret.put(new StringValue(mod.getDisplayName()), new StringValue(mod.getVersion().toString()));
             return MapValue.wrap(ret);
         });
         put("server_last_tick_times", c -> {

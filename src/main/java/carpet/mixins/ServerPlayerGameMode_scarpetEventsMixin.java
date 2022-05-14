@@ -38,15 +38,15 @@ public class ServerPlayerGameMode_scarpetEventsMixin implements ServerPlayerInte
 
     @Shadow public ServerLevel level;
 
-    @Inject(method = "destroyBlock", locals = LocalCapture.CAPTURE_FAILHARD, at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/world/level/block/Block;playerWillDestroy(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/entity/player/Player;)V",
-            shift = At.Shift.BEFORE
-    ))
-    private void onBlockBroken(BlockPos blockPos_1, CallbackInfoReturnable<Boolean> cir, BlockState blockState_1, BlockEntity be, Block b)
-    {
-        PLAYER_BREAK_BLOCK.onBlockBroken(player, blockPos_1, blockState_1);
-    }
+//    @Inject(method = "destroyBlock", locals = LocalCapture.CAPTURE_FAILHARD, at = @At(
+//            value = "INVOKE",
+//            target = "Lnet/minecraft/world/level/item/ItemStack;mineBlock(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/entity/player/Player;)V",
+//            shift = At.Shift.BEFORE
+//    ))
+//    private void onBlockBroken(BlockPos blockPos_1, CallbackInfoReturnable<Boolean> cir, BlockState blockState_1, BlockEntity be, Block b)
+//    {
+//        PLAYER_BREAK_BLOCK.onBlockBroken(player, blockPos_1, blockState_1);
+//    }
 
     @Inject(method = "useItemOn", at = @At(
             value = "RETURN",

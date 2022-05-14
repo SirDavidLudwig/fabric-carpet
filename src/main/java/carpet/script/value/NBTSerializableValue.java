@@ -686,7 +686,7 @@ public class NBTSerializableValue extends Value implements ContainerValueInterfa
     @Override
     public Tag toTag(boolean force)
     {
-        if (!force) throw new NBTSerializableValue.IncompatibleTypeException(this);
+        if (!force) throw new IncompatibleTypeException(this);
         ensureOwnership();
         return getTag();
     }

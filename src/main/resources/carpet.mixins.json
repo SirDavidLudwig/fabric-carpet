@@ -1,10 +1,10 @@
 {
   "required": true,
-  "refmap": "fabric-carpet-refmap.json",
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8.5",
   "package": "carpet.mixins",
-  "compatibilityLevel": "JAVA_16",
+  "refmap": "carpet.mixins.refmap.json",
   "mixins": [
-    "BarrierBlock_updateSuppressionBlockMixin",
     "SpawnState_scarpetMixin",
     "MobCategory_spawnMixin",
     "Commands_customCommandsMixin",
@@ -211,8 +211,6 @@
     "ClientPacketListener_customPacketsMixin",
     "DebugRenderer_scarpetRenderMixin",
     "LevelRenderer_scarpetRenderMixin"
-  ],
-  "server": [
   ],
   "injectors": {
     "defaultRequire": 1

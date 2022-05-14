@@ -105,8 +105,8 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantBlockableE
             {
                 if (Math.abs(carpetMsptAccum - TickSpeed.mspt) > 1.0f)
                 {
-                	// Tickrate changed. Ensure that we use the correct value.
-                	carpetMsptAccum = TickSpeed.mspt;
+                    // Tickrate changed. Ensure that we use the correct value.
+                    carpetMsptAccum = TickSpeed.mspt;
                 }
 
                 msThisTick = (long)carpetMsptAccum; // regular tick
@@ -148,7 +148,6 @@ public abstract class MinecraftServer_tickspeedMixin extends ReentrantBlockableE
             this.endMetricsRecordingTick();
             this.isReady = true;
         }
-
     }
 
     // just because profilerTimings class is public

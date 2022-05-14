@@ -28,12 +28,13 @@ import carpet.utils.Messenger;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.tree.CommandNode;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -160,9 +161,9 @@ public class CarpetScriptServer
             if (scriptPath.isPresent())
                 return new FileModule(scriptPath.get());
 
-            if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT)
+            if (FMLEnvironment.dist == Dist.CLIENT)
             {
-                Path globalFolder = FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts");
+                Path globalFolder = Path.of("config/carpet/scripts"); // FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts");
                 if (!Files.exists(globalFolder)) 
                     Files.createDirectories(globalFolder);
                 scriptPath = Files.walk(globalFolder)
@@ -215,9 +216,9 @@ public class CarpetScriptServer
                 .filter(f -> f.toString().endsWith(".sc"))
                 .forEach(f -> moduleNames.add(f.getFileName().toString().replaceFirst("\\.sc$","").toLowerCase(Locale.ROOT)));
 
-            if (includeBuiltIns && (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT))
+            if (includeBuiltIns && (FMLEnvironment.dist == Dist.CLIENT))
             {
-                Path globalScripts = FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts");
+                Path globalScripts = Path.of("config/carpet/scripts"); // FabricLoader.getInstance().getConfigDir().resolve("carpet/scripts");
                 if (!Files.exists(globalScripts))
                     Files.createDirectories(globalScripts);
                 Files.walk(globalScripts, FileVisitOption.FOLLOW_LINKS)
@@ -459,7 +460,7 @@ public class CarpetScriptServer
         AnnotationParser.parseFunctionClass(Entities.class);
         AnnotationParser.parseFunctionClass(Inventories.class);
         AnnotationParser.parseFunctionClass(Scoreboards.class);
-        AnnotationParser.parseFunctionClass(carpet.script.language.Threading.class);
+        AnnotationParser.parseFunctionClass(Threading.class);
         AnnotationParser.parseFunctionClass(WorldAccess.class);
     }
 }

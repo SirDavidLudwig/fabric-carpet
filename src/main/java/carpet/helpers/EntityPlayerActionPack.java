@@ -175,7 +175,7 @@ public class EntityPlayerActionPack
             entities = player.level.getEntities(player, player.getBoundingBox().inflate(3.0D, 1.0D, 3.0D),
                     e -> e instanceof Minecart || e instanceof Boat || e instanceof AbstractHorse);
         }
-            else
+        else
         {
             entities = player.level.getEntities(player, player.getBoundingBox().inflate(3.0D, 1.0D, 3.0D));
         }
@@ -285,84 +285,84 @@ public class EntityPlayerActionPack
     public enum ActionType
     {
         USE(true)
-        {
-            @Override
-            boolean execute(ServerPlayer player, Action action)
-            {
-                EntityPlayerActionPack ap = ((ServerPlayerEntityInterface) player).getActionPack();
-                if (ap.itemUseCooldown > 0)
                 {
-                    ap.itemUseCooldown--;
-                    return true;
-                }
-                if (player.isUsingItem())
-                {
-                    return true;
-                }
-                HitResult hit = getTarget(player);
-                for (InteractionHand hand : InteractionHand.values())
-                {
-                    switch (hit.getType())
+                    @Override
+                    boolean execute(ServerPlayer player, Action action)
                     {
-                        case BLOCK:
+                        EntityPlayerActionPack ap = ((ServerPlayerEntityInterface) player).getActionPack();
+                        if (ap.itemUseCooldown > 0)
                         {
-                            player.resetLastActionTime();
-                            ServerLevel world = player.getLevel();
-                            BlockHitResult blockHit = (BlockHitResult) hit;
-                            BlockPos pos = blockHit.getBlockPos();
-                            Direction side = blockHit.getDirection();
-                            if (pos.getY() < player.getLevel().getMaxBuildHeight() - (side == Direction.UP ? 1 : 0) && world.mayInteract(player, pos))
+                            ap.itemUseCooldown--;
+                            return true;
+                        }
+                        if (player.isUsingItem())
+                        {
+                            return true;
+                        }
+                        HitResult hit = getTarget(player);
+                        for (InteractionHand hand : InteractionHand.values())
+                        {
+                            switch (hit.getType())
                             {
-                                InteractionResult result = player.gameMode.useItemOn(player, world, player.getItemInHand(hand), hand, blockHit);
-                                if (result.consumesAction())
+                                case BLOCK:
                                 {
-                                    if (result.shouldSwing()) player.swing(hand);
-                                    ap.itemUseCooldown = 3;
-                                    return true;
+                                    player.resetLastActionTime();
+                                    ServerLevel world = player.getLevel();
+                                    BlockHitResult blockHit = (BlockHitResult) hit;
+                                    BlockPos pos = blockHit.getBlockPos();
+                                    Direction side = blockHit.getDirection();
+                                    if (pos.getY() < player.getLevel().getMaxBuildHeight() - (side == Direction.UP ? 1 : 0) && world.mayInteract(player, pos))
+                                    {
+                                        InteractionResult result = player.gameMode.useItemOn(player, world, player.getItemInHand(hand), hand, blockHit);
+                                        if (result.consumesAction())
+                                        {
+                                            if (result.shouldSwing()) player.swing(hand);
+                                            ap.itemUseCooldown = 3;
+                                            return true;
+                                        }
+                                    }
+                                    break;
+                                }
+                                case ENTITY:
+                                {
+                                    player.resetLastActionTime();
+                                    EntityHitResult entityHit = (EntityHitResult) hit;
+                                    Entity entity = entityHit.getEntity();
+                                    boolean handWasEmpty = player.getItemInHand(hand).isEmpty();
+                                    boolean itemFrameEmpty = (entity instanceof ItemFrame) && ((ItemFrame) entity).getItem().isEmpty();
+                                    Vec3 relativeHitPos = entityHit.getLocation().subtract(entity.getX(), entity.getY(), entity.getZ());
+                                    if (entity.interactAt(player, relativeHitPos, hand).consumesAction())
+                                    {
+                                        ap.itemUseCooldown = 3;
+                                        return true;
+                                    }
+                                    // fix for SS itemframe always returns CONSUME even if no action is performed
+                                    if (player.interactOn(entity, hand).consumesAction() && !(handWasEmpty && itemFrameEmpty))
+                                    {
+                                        ap.itemUseCooldown = 3;
+                                        return true;
+                                    }
+                                    break;
                                 }
                             }
-                            break;
-                        }
-                        case ENTITY:
-                        {
-                            player.resetLastActionTime();
-                            EntityHitResult entityHit = (EntityHitResult) hit;
-                            Entity entity = entityHit.getEntity();
-                            boolean handWasEmpty = player.getItemInHand(hand).isEmpty();
-                            boolean itemFrameEmpty = (entity instanceof ItemFrame) && ((ItemFrame) entity).getItem().isEmpty();
-                            Vec3 relativeHitPos = entityHit.getLocation().subtract(entity.getX(), entity.getY(), entity.getZ());
-                            if (entity.interactAt(player, relativeHitPos, hand).consumesAction())
+                            ItemStack handItem = player.getItemInHand(hand);
+                            if (player.gameMode.useItem(player, player.getLevel(), handItem, hand).consumesAction())
                             {
                                 ap.itemUseCooldown = 3;
                                 return true;
                             }
-                            // fix for SS itemframe always returns CONSUME even if no action is performed
-                            if (player.interactOn(entity, hand).consumesAction() && !(handWasEmpty && itemFrameEmpty))
-                            {
-                                ap.itemUseCooldown = 3;
-                                return true;
-                            }
-                            break;
                         }
+                        return false;
                     }
-                    ItemStack handItem = player.getItemInHand(hand);
-                    if (player.gameMode.useItem(player, player.getLevel(), handItem, hand).consumesAction())
-                    {
-                        ap.itemUseCooldown = 3;
-                        return true;
-                    }
-                }
-                return false;
-            }
 
-            @Override
-            void inactiveTick(ServerPlayer player, Action action)
-            {
-                EntityPlayerActionPack ap = ((ServerPlayerEntityInterface) player).getActionPack();
-                ap.itemUseCooldown = 0;
-                player.releaseUsingItem();
-            }
-        },
+                    @Override
+                    void inactiveTick(ServerPlayer player, Action action)
+                    {
+                        EntityPlayerActionPack ap = ((ServerPlayerEntityInterface) player).getActionPack();
+                        ap.itemUseCooldown = 0;
+                        player.releaseUsingItem();
+                    }
+                },
         ATTACK(true) {
             @Override
             boolean execute(ServerPlayer player, Action action) {
@@ -459,59 +459,59 @@ public class EntityPlayerActionPack
             }
         },
         JUMP(true)
-        {
-            @Override
-            boolean execute(ServerPlayer player, Action action)
-            {
-                if (action.limit == 1)
                 {
-                    if (player.isOnGround()) player.jumpFromGround(); // onGround
-                }
-                else
-                {
-                    player.setJumping(true);
-                }
-                return false;
-            }
+                    @Override
+                    boolean execute(ServerPlayer player, Action action)
+                    {
+                        if (action.limit == 1)
+                        {
+                            if (player.isOnGround()) player.jumpFromGround(); // onGround
+                        }
+                        else
+                        {
+                            player.setJumping(true);
+                        }
+                        return false;
+                    }
 
-            @Override
-            void inactiveTick(ServerPlayer player, Action action)
-            {
-                player.setJumping(false);
-            }
-        },
+                    @Override
+                    void inactiveTick(ServerPlayer player, Action action)
+                    {
+                        player.setJumping(false);
+                    }
+                },
         DROP_ITEM(true)
-        {
-            @Override
-            boolean execute(ServerPlayer player, Action action)
-            {
-                player.resetLastActionTime();
-                player.drop(false); // dropSelectedItem
-                return false;
-            }
-        },
+                {
+                    @Override
+                    boolean execute(ServerPlayer player, Action action)
+                    {
+                        player.resetLastActionTime();
+                        player.drop(false); // dropSelectedItem
+                        return false;
+                    }
+                },
         DROP_STACK(true)
-        {
-            @Override
-            boolean execute(ServerPlayer player, Action action)
-            {
-                player.resetLastActionTime();
-                player.drop(true); // dropSelectedItem
-                return false;
-            }
-        },
+                {
+                    @Override
+                    boolean execute(ServerPlayer player, Action action)
+                    {
+                        player.resetLastActionTime();
+                        player.drop(true); // dropSelectedItem
+                        return false;
+                    }
+                },
         SWAP_HANDS(true)
-        {
-            @Override
-            boolean execute(ServerPlayer player, Action action)
-            {
-                player.resetLastActionTime();
-                ItemStack itemStack_1 = player.getItemInHand(InteractionHand.OFF_HAND);
-                player.setItemInHand(InteractionHand.OFF_HAND, player.getItemInHand(InteractionHand.MAIN_HAND));
-                player.setItemInHand(InteractionHand.MAIN_HAND, itemStack_1);
-                return false;
-            }
-        };
+                {
+                    @Override
+                    boolean execute(ServerPlayer player, Action action)
+                    {
+                        player.resetLastActionTime();
+                        ItemStack itemStack_1 = player.getItemInHand(InteractionHand.OFF_HAND);
+                        player.setItemInHand(InteractionHand.OFF_HAND, player.getItemInHand(InteractionHand.MAIN_HAND));
+                        player.setItemInHand(InteractionHand.MAIN_HAND, itemStack_1);
+                        return false;
+                    }
+                };
 
         public final boolean preventSpectator;
 

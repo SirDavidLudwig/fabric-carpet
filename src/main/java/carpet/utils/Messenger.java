@@ -104,14 +104,14 @@ public class Messenger
     public static String creatureTypeColor(MobCategory type)
     {
         return switch (type)
-        {
-            case MONSTER -> "n";
-            case CREATURE -> "e";
-            case AMBIENT -> "f";
-            case WATER_CREATURE -> "v";
-            case WATER_AMBIENT -> "q";
-            default -> "w"; // missing MISC and UNDERGROUND_WATER_CREATURE
-        };
+                {
+                    case MONSTER -> "n";
+                    case CREATURE -> "e";
+                    case AMBIENT -> "f";
+                    case WATER_CREATURE -> "v";
+                    case WATER_AMBIENT -> "q";
+                    default -> "w"; // missing MISC and UNDERGROUND_WATER_CREATURE
+                };
     }
 
     private static BaseComponent getChatComponentFromDesc(String message, BaseComponent previousMessage)
@@ -311,4 +311,3 @@ public class Messenger
         }
     }
 }
-

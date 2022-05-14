@@ -82,7 +82,7 @@ public class Operators {
         expression.addBinaryOperator("%", precedence.get("multiplication*/%"), true, (v1, v2) ->
                 NumericValue.asNumber(v1).mod(NumericValue.asNumber(v2)));
         expression.addBinaryOperator("^", precedence.get("exponent^"), false, (v1, v2) ->
-                new NumericValue(java.lang.Math.pow(NumericValue.asNumber(v1).getDouble(), NumericValue.asNumber(v2).getDouble())));
+                new NumericValue(Math.pow(NumericValue.asNumber(v1).getDouble(), NumericValue.asNumber(v2).getDouble())));
 
         expression.addFunction("bitwise_and", lv -> {
             int size = lv.size();

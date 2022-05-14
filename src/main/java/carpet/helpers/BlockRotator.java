@@ -236,8 +236,8 @@ public class BlockRotator
             Direction face = iblockstate.getValue(DirectionalBlock.FACING);
             if (block instanceof PistonBaseBlock && (
                     iblockstate.getValue(PistonBaseBlock.EXTENDED)
-                    || ( ((PistonBlockInterface)block).publicShouldExtend(world, blockpos, face) && (new PistonStructureResolver(world, blockpos, face, true)).resolve() )
-                    )
+                            || ( ((PistonBlockInterface)block).publicShouldExtend(world, blockpos, face) && (new PistonStructureResolver(world, blockpos, face, true)).resolve() )
+            )
             )
                 return stack;
 
@@ -288,7 +288,7 @@ public class BlockRotator
         Direction facing = hit.getDirection();
         BlockState newState = null;
         if ( (block instanceof GlazedTerracottaBlock) || (block instanceof DiodeBlock) || (block instanceof BaseRailBlock) ||
-             (block instanceof TrapDoorBlock)         || (block instanceof LeverBlock)         || (block instanceof FenceGateBlock))
+                (block instanceof TrapDoorBlock)         || (block instanceof LeverBlock)         || (block instanceof FenceGateBlock))
         {
             newState = state.rotate(Rotation.CLOCKWISE_90);
         }
@@ -359,7 +359,7 @@ public class BlockRotator
                 }
             }
         }
-        else if (block instanceof RotatedPillarBlock) 
+        else if (block instanceof RotatedPillarBlock)
         {
             switch((Direction.Axis)state.getValue(RotatedPillarBlock.AXIS)) {
                 case X:

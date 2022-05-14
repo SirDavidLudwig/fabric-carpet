@@ -1,8 +1,6 @@
 package carpet.script.utils;
 
 import carpet.fakes.MinecraftServerInterface;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -32,6 +30,9 @@ import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.WorldGenSettings;
 import net.minecraft.world.level.storage.DerivedLevelData;
 import net.minecraft.world.level.storage.ServerLevelData;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -161,7 +162,7 @@ public class WorldTools
     {
         @Override public void updateSpawnPos(ChunkPos spawnPos) { }
         @Override public void onStatusChange(ChunkPos pos, ChunkStatus status) { }
-        @Environment(EnvType.CLIENT)
+        @OnlyIn(Dist.CLIENT)
         @Override public void start() { }
         @Override public void stop() { }
     }

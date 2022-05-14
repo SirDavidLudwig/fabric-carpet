@@ -12,10 +12,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class PerfCommand_permissionMixin
 {
     @SuppressWarnings("UnresolvedMixinReference")
-    @Inject(method = "method_37340", at = @At("HEAD"), cancellable = true)
-    private static void canRun(CommandSourceStack source, CallbackInfoReturnable<Boolean> cir)
+    @Inject(method = "startProfilingDedicatedServer", at = @At("HEAD"), cancellable = true)
+    private static void canStart(CommandSourceStack source, CallbackInfoReturnable<Boolean> cir)
     {
         cir.setReturnValue(source.hasPermission(CarpetSettings.perfPermissionLevel));
     }
 
+    @SuppressWarnings("UnresolvedMixinReference")
+    @Inject(method = "stopProfilingDedicatedServer", at = @At("HEAD"), cancellable = true)
+    private static void canStop(CommandSourceStack source, CallbackInfoReturnable<Boolean> cir)
+    {
+        cir.setReturnValue(source.hasPermission(CarpetSettings.perfPermissionLevel));
+    }
 }

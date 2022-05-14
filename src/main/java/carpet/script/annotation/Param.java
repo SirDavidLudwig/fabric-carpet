@@ -31,9 +31,9 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 /**
  * <p>Class that holds annotations for Scarpet parameters.</p>
  * 
- * @see Param.Strict
- * @see Param.AllowSingleton
- * @see Param.Custom
+ * @see Strict
+ * @see AllowSingleton
+ * @see Custom
  * @see Locator.Block
  * @see Locator.Vec3d
  * @see Locator.Function
@@ -226,9 +226,9 @@ public interface Param
         }
 
         /**
-         * <p>Registers a new {@link Param.Strict} parameter converter with the specified shallowness.</p>
+         * <p>Registers a new {@link Strict} parameter converter with the specified shallowness.</p>
          * 
-         * <p>Registered types should follow the general contract of the rest of {@link Param.Strict} parameter converters, that is, don't have a
+         * <p>Registered types should follow the general contract of the rest of {@link Strict} parameter converters, that is, don't have a
          * shallow-strict converter registered without having a fully-strict converter available. In order to register completely non-strict
          * converters, those should be registered in their respective {@link ValueConverter} classes, usually in {@link SimpleTypeConverter}.</p>
          * 
@@ -248,12 +248,12 @@ public interface Param
         private static final List<BiFunction<AnnotatedType, Class<?>, ValueConverter<?>>> customFactories = new ArrayList<>();
 
         /**
-         * <p>Allows extensions to register <b>COMPLEX</b> {@link ValueConverter} factories in order to be used with the {@link Param.Custom}
+         * <p>Allows extensions to register <b>COMPLEX</b> {@link ValueConverter} factories in order to be used with the {@link Custom}
          * annotation.</p> <p><b>If you only need to register a converter from a {@link Value} to a type, use
          * {@link SimpleTypeConverter#registerType(Class, Class, java.util.function.Function, String)} instead. This is intended to be used when you
          * need more granular control over the conversion, such as custom extra parameters via annotations, converters using multiple values, or even
          * a variable number of values.</b></p> <p>The annotation parser will loop through all registered custom converter factories when searching
-         * for the appropriate {@link ValueConverter} for a parameter annotated with the {@link Param.Custom} annotation.</p> <p>Factories are
+         * for the appropriate {@link ValueConverter} for a parameter annotated with the {@link Custom} annotation.</p> <p>Factories are
          * expected to return {@code null} when the provided arguments don't match a {@link ValueConverter} they are able to create (or reuse).</p>
          * <p>You have {@link ValueCaster#get(Class)} and {@link ValueConverter#fromAnnotatedType(AnnotatedType)} available in case you need to get
          * valid {@link ValueConverter}s for things such as nested types, intermediary conversions or whatever you really need them for.</p>

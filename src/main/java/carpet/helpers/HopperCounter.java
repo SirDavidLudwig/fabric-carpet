@@ -189,7 +189,7 @@ public class HopperCounter
                 return Collections.singletonList(Messenger.c("b"+prettyColour,"w : ","wb 0","w , ","wb 0","w /h, ", String.format("wb %.1f ", ticks / (20.0 * 60.0)), "w min"));
             }
             return Collections.singletonList(Messenger.c("w No items for ", prettyColour, String.format("w  yet (%.2f min.%s)",
-                    ticks / (20.0 * 60.0), (realTime ? " - real time" : "")),
+                            ticks / (20.0 * 60.0), (realTime ? " - real time" : "")),
                     "nb  [X]", "^g reset", "!/counter " + color.getName() +" reset"));
         }
         if (brief)

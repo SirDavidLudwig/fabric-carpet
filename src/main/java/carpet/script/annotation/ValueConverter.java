@@ -129,7 +129,7 @@ public interface ValueConverter<R>
         if (annoType.getDeclaredAnnotations().length != 0)
         {
             if (annoType.isAnnotationPresent(Param.Custom.class))
-                return Param.Params.getCustomConverter(annoType, type); // Throws if incorrect usage
+                return Params.getCustomConverter(annoType, type); // Throws if incorrect usage
             if (annoType.isAnnotationPresent(Param.Strict.class))
                 return (ValueConverter<R>) Params.getStrictConverter(annoType); // Throws if incorrect usage
             if (annoType.getAnnotations()[0].annotationType().getEnclosingClass() == Locator.class)

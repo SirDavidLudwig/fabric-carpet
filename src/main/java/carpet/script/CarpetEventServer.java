@@ -1044,7 +1044,7 @@ public class CarpetEventServer
 
         public static List<Event> getAllEvents(CarpetScriptServer server, Predicate<Event> predicate)
         {
-            List<CarpetEventServer.Event> eventList = new ArrayList<>(CarpetEventServer.Event.byName.values());
+            List<Event> eventList = new ArrayList<>(Event.byName.values());
             eventList.addAll(server.events.customEvents.values());
             if (predicate == null) return eventList;
             return eventList.stream().filter(predicate).collect(Collectors.toList());

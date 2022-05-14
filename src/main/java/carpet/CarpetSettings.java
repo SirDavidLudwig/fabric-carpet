@@ -207,7 +207,7 @@ public class CarpetSettings
     @Rule( desc = "Players absorb XP instantly, without delay", category = CREATIVE )
     public static boolean xpNoCooldown = false;
 
-    public static class StackableShulkerBoxValidator extends Validator<String> 
+    public static class StackableShulkerBoxValidator extends Validator<String>
     {
         @Override
         public String validate(CommandSourceStack source, ParsedRule<String> currentRule, String newValue, String string)
@@ -806,8 +806,8 @@ public class CarpetSettings
         public static void applyLightBatchSizes()
         {
             Iterator<ServerLevel> iterator = CarpetServer.minecraft_server.getAllLevels().iterator();
-            
-            while (iterator.hasNext()) 
+
+            while (iterator.hasNext())
             {
                 ServerLevel serverWorld = iterator.next();
                 serverWorld.getChunkSource().getLightEngine().setTaskPerBatch(lightEngineMaxBatchSize);
@@ -826,7 +826,7 @@ public class CarpetSettings
                 return newValue;
             }
             if (CarpetServer.minecraft_server == null) return newValue;
-          
+
             // Set the field before we apply.
             try
             {
@@ -837,13 +837,13 @@ public class CarpetSettings
                 Messenger.m(source, "r Unable to access setting for  "+currentRule.name);
                 return null;
             }
-            
+
             applyLightBatchSizes(); // Apply new settings
-            
+
             return newValue;
         }
     }
-    
+
     @Rule(
             desc = "Changes maximum light tasks batch size",
             extra = {"Allows for a higher light suppression tolerance", "setting it to 5 - Default limit defined by the game"},
@@ -892,7 +892,7 @@ public class CarpetSettings
 
     @Rule(desc = "Spawning requires much less CPU and Memory", category = OPTIMIZATION)
     public static boolean lagFreeSpawning = false;
-    
+
     @Rule(
             desc = "Allows structure mobs to spawn in flat worlds",
             category = {EXPERIMENTAL, CREATIVE}

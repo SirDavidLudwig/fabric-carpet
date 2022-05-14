@@ -34,14 +34,14 @@ public class TickSpeed
      *         since that one accounts for tick steps and superhot
      */
     public static boolean isPaused() {
-	    return is_paused;
+        return is_paused;
     }
 
     /**
      * Whether or not the game is deeply frozen.
      * This can be used for things that you may not normally want
      * to freeze, but may need to in some situations.
-     * This should be checked with {@link #process_entities} to make sure the 
+     * This should be checked with {@link #process_entities} to make sure the
      * current tick is actually frozen, not only the game
      * @return Whether or not the game is deeply frozen.
      */
@@ -67,7 +67,7 @@ public class TickSpeed
      */
     private static final Map<String, BiConsumer<String, Float>> tickrateListeners = new HashMap<>();
     private static final float MIN_TICKRATE = 0.01f;
-    
+
     public static void reset_player_active_timeout()
     {
         if (player_active_timeout < PLAYER_GRACE)
@@ -226,45 +226,45 @@ public class TickSpeed
             mspt = 1L;
             tickrate = 1000.0f;
         }
-        
+
         TickSpeed.mspt = (float)mspt;
-        
+
         if (update) notifyTickrateListeners("carpet");
     }
-    
+
     private static void tickrateChanged(String modId, float rate)
     {
-    	// Other mods might change the tickrate in a slightly
-    	// different way. Also allow for tickrates that don't
-    	// divide into 1000 here.
-    	
+        // Other mods might change the tickrate in a slightly
+        // different way. Also allow for tickrates that don't
+        // divide into 1000 here.
+
         if (rate < MIN_TICKRATE)
         {
             rate = MIN_TICKRATE;
         }
-        
+
         tickrate = rate;
         mspt = 1000.0f / tickrate;
-        
+
         notifyTickrateListeners(modId);
     }
-    
+
     private static void notifyTickrateListeners(String originModId)
     {
-    	synchronized (tickrateListeners)
+        synchronized (tickrateListeners)
         {
-	        for (Map.Entry<String, BiConsumer<String, Float>> listenerEntry : tickrateListeners.entrySet()) 
-	        {
-	            if (originModId == null || !originModId.equals(listenerEntry.getKey())) 
-	            {
-	                listenerEntry.getValue().accept(originModId, Float.valueOf(tickrate));
-	            }
-	        }
+            for (Map.Entry<String, BiConsumer<String, Float>> listenerEntry : tickrateListeners.entrySet())
+            {
+                if (originModId == null || !originModId.equals(listenerEntry.getKey()))
+                {
+                    listenerEntry.getValue().accept(originModId, Float.valueOf(tickrate));
+                }
+            }
         }
         ServerNetworkHandler.updateTickSpeedToConnectedPlayers();
     }
-    
-    public static BiConsumer<String, Float> addTickrateListener(String modId, BiConsumer<String, Float> tickrateListener) 
+
+    public static BiConsumer<String, Float> addTickrateListener(String modId, BiConsumer<String, Float> tickrateListener)
     {
         synchronized (tickrateListeners)
         {
@@ -273,4 +273,3 @@ public class TickSpeed
         return TickSpeed::tickrateChanged;
     }
 }
-

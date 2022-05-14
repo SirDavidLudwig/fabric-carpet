@@ -142,7 +142,7 @@ public class ServerNetworkHandler
             ));
         }
     }
-    
+
     public static void updateTickSpeedToConnectedPlayers()
     {
         if (CarpetSettings.superSecretSetting) return;
@@ -268,8 +268,8 @@ public class ServerNetworkHandler
         }
         private DataBuilder withSuperHotState()
         {
-        	tag.putBoolean("SuperHotState", TickSpeed.is_superHot);
-        	return this;
+            tag.putBoolean("SuperHotState", TickSpeed.is_superHot);
+            return this;
         }
         private DataBuilder withTickPlayerActiveTimeout()
         {

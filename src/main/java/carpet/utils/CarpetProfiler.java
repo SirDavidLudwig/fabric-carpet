@@ -292,11 +292,11 @@ public class CarpetProfiler
             Pair<Level,Object> section = sectionEntry.getKey();
             boolean cli = section.getKey().isClientSide;
             Messenger.m(currentRequester, String.format(
-                    "%s - %s: ", cli?"gi":"w",
-                    sectionName(section)),
+                            "%s - %s: ", cli?"gi":"w",
+                            sectionName(section)),
                     String.format("%s %.1f", cli?"di":"y",
-                    1.0D * sectionEntry.getLongValue() / (tick_health_requested - (cli? 1 : 0))
-            ));
+                            1.0D * sectionEntry.getLongValue() / (tick_health_requested - (cli? 1 : 0))
+                    ));
         }
         Messenger.m(currentRequester, "wb Top 10 CPU hogs:");
         total = 0;
@@ -306,11 +306,11 @@ public class CarpetProfiler
             Pair<Level,Object> section = sectionEntry.getKey();
             boolean cli = section.getKey().isClientSide;
             Messenger.m(currentRequester, String.format(
-                    "%s - %s: ", cli?"gi":"w",
-                    sectionName(section)),
+                            "%s - %s: ", cli?"gi":"w",
+                            sectionName(section)),
                     String.format("%s %.2fms", cli?"di":"y",
-                    (cli ? divider : divider_1) * sectionEntry.getLongValue()
-            ));
+                            (cli ? divider : divider_1) * sectionEntry.getLongValue()
+                    ));
         }
     }
 }

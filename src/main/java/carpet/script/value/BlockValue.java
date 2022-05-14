@@ -311,7 +311,7 @@ public class BlockValue extends Value
 
         @Override
         public Direction getHorizontalDirection() {
-            return this.facing.getAxis() == Direction.Axis.Y ? Direction.NORTH : this.facing;
+            return this.facing.getAxis() == Axis.Y ? Direction.NORTH : this.facing;
         }
 
         @Override

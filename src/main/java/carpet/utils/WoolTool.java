@@ -69,10 +69,10 @@ public class WoolTool
      */
     public static void carpetPlacedAction(DyeColor color, Player placer, BlockPos pos, ServerLevel worldIn)
     {
-		if (!CarpetSettings.carpets)
-		{
-			return;
-		}
+        if (!CarpetSettings.carpets)
+        {
+            return;
+        }
         switch (color)
         {
             case PINK:
@@ -100,7 +100,7 @@ public class WoolTool
                 if (!"false".equals(CarpetSettings.commandInfo))
                     Messenger.send(placer, BlockInfo.blockInfo(pos.below(), worldIn));
                 break;
-			case GREEN:
+            case GREEN:
                 if (CarpetSettings.hopperCounters)
                 {
                     DyeColor under = getWoolColorAtPosition(worldIn, pos.below());
@@ -109,8 +109,8 @@ public class WoolTool
                     if (counter != null)
                         Messenger.send(placer, counter.format(worldIn.getServer(), false, false));
                 }
-				break;
-			case RED:
+                break;
+            case RED:
                 if (CarpetSettings.hopperCounters)
                 {
                     DyeColor under = getWoolColorAtPosition(worldIn, pos.below());
@@ -122,7 +122,7 @@ public class WoolTool
                     res.add(Messenger.s(String.format("%s counter reset",under.toString())));
                     Messenger.send(placer, res);
                 }
-			    break;
+                break;
         }
     }
 

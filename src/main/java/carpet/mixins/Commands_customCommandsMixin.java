@@ -23,12 +23,11 @@ public abstract class Commands_customCommandsMixin
     @Shadow
     @Final
     private CommandDispatcher<CommandSourceStack> dispatcher;
-
-    @Inject(method = "<init>", at = @At("RETURN"))
-    private void onRegister(Commands.CommandSelection arg, CallbackInfo ci) {
-        CarpetServer.registerCarpetCommands(this.dispatcher);
-        CarpetServer.registerCarpetCommands(this.dispatcher, arg);
-    }
+//
+//    @Inject(method = "<init>", at = @At("RETURN"))
+//    private void onRegister(Commands.CommandSelection arg, CallbackInfo ci) {
+//        CarpetServer.registerCarpetCommands(this.dispatcher, arg);
+//    }
 
     @Inject(method = "performCommand", at = @At("HEAD"))
     private void onExecuteBegin(CommandSourceStack serverCommandSource_1, String string_1, CallbackInfoReturnable<Integer> cir)

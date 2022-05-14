@@ -70,7 +70,7 @@ public class OptimizedExplosion
 
     public static void doExplosionA(Explosion e, ExplosionLogHelper eLogger) {
         ExplosionAccessor eAccess = (ExplosionAccessor) e;
-        
+
         entityList.clear();
         boolean eventNeeded = EXPLOSION_OUTCOME.isNeeded() && !eAccess.getLevel().isClientSide();
         blastCalc(e);
@@ -195,7 +195,7 @@ public class OptimizedExplosion
 
     public static void doExplosionB(Explosion e, boolean spawnParticles)
     {
-        ExplosionAccessor eAccess = (ExplosionAccessor) e; 
+        ExplosionAccessor eAccess = (ExplosionAccessor) e;
         Level world = eAccess.getLevel();
         double posX = eAccess.getX();
         double posY = eAccess.getY();
@@ -277,7 +277,7 @@ public class OptimizedExplosion
                 if (eAccess.getRandom().nextInt(3) == 0 &&
                         chunk.getBlockState(blockpos1).getMaterial() == Material.AIR &&
                         chunk.getBlockState(down).isSolidRender(world, down)
-                        )
+                )
                 {
                     world.setBlockAndUpdate(blockpos1, Blocks.FIRE.defaultBlockState());
                 }

@@ -1,47 +1,49 @@
 package carpet;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-
-import carpet.commands.CounterCommand;
-import carpet.commands.DistanceCommand;
-import carpet.commands.DrawCommand;
-import carpet.commands.InfoCommand;
-import carpet.commands.LogCommand;
-import carpet.commands.MobAICommand;
-import carpet.commands.PerimeterInfoCommand;
-import carpet.commands.PlayerCommand;
-import carpet.commands.ProfileCommand;
-import carpet.commands.ScriptCommand;
-import carpet.commands.SpawnCommand;
-import carpet.commands.TestCommand;
-import carpet.commands.TickCommand;
-import carpet.network.ServerNetworkHandler;
+import carpet.commands.*;
 import carpet.helpers.HopperCounter;
 import carpet.helpers.TickSpeed;
+import carpet.logging.HUDController;
 import carpet.logging.LoggerRegistry;
+import carpet.network.ServerNetworkHandler;
 import carpet.script.CarpetScriptServer;
 import carpet.settings.SettingsManager;
-import carpet.logging.HUDController;
-import carpet.utils.FabricAPIHooks;
+import carpet.utils.ForgeAPIHooks;
 import carpet.utils.MobAI;
 import carpet.utils.SpawnReporter;
 import com.mojang.brigadier.CommandDispatcher;
-
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.api.DedicatedServerModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
+import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.commands.PerfCommand;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.InterModComms;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
+import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import org.slf4j.Logger;
 
-public class CarpetServer // static for now - easier to handle all around the code, its one anyways
-{
-    public static final ClientModInitializer CLIENT_INITIALIZER = CarpetServer::onGameStarted;
-    public static final DedicatedServerModInitializer SERVER_INITIALIZER = CarpetServer::onGameStarted;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
+
+import static carpet.script.CarpetEventServer.Event.PLAYER_BREAK_BLOCK;
+
+@Mod("carpet")
+public class CarpetServer {
+    // Directly reference a slf4j logger
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final Random rand = new Random();
     public static MinecraftServer minecraft_server;
@@ -50,25 +52,36 @@ public class CarpetServer // static for now - easier to handle all around the co
     public static SettingsManager settingsManager;
     public static final List<CarpetExtension> extensions = new ArrayList<>();
 
-    // Separate from onServerLoaded, because a server can be loaded multiple times in singleplayer
-    /**
-     * Registers a {@link CarpetExtension} to be managed by Carpet.<br>
-     * Should be called before Carpet's startup, like in Fabric Loader's
-     * {@link net.fabricmc.api.ModInitializer} entrypoint
-     * @param extension The instance of a {@link CarpetExtension} to be registered
-     */
-    public static void manageExtension(CarpetExtension extension)
+    public CarpetServer()
     {
-        extensions.add(extension);
-        // for extensions that come late to the party, after server is created / loaded
-        // we will handle them now.
-        // that would handle all extensions, even these that add themselves really late to the party
-        if (currentCommandDispatcher != null)
-        {
-            extension.registerCommands(currentCommandDispatcher);
-            CarpetSettings.LOG.warn(extension.getClass().getSimpleName() + " extension registered too late!");
-            CarpetSettings.LOG.warn("This won't be supported in later Carpet versions and may crash the game!");
-        }
+        // Register the setup method for modloading
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
+        // Register the enqueueIMC method for modloading
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::enqueueIMC);
+        // Register the processIMC method for modloading
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::processIMC);
+
+        // Register ourselves for server and other game events we are interested in
+        MinecraftForge.EVENT_BUS.register(new ForgeAPIHooks());
+    }
+
+    private void setup(final FMLCommonSetupEvent event)
+    {
+        onGameStarted();
+    }
+
+    private void enqueueIMC(final InterModEnqueueEvent event)
+    {
+        // Some example code to dispatch IMC to another mod
+        InterModComms.sendTo("examplemod", "helloworld", () -> { LOGGER.info("Hello world from the MDK"); return "Hello world";});
+    }
+
+    private void processIMC(final InterModProcessEvent event)
+    {
+        // Some example code to receive and process InterModComms from other mods
+        LOGGER.info("Got IMC {}", event.getIMCStream().
+                map(m->m.messageSupplier().get()).
+                collect(Collectors.toList()));
     }
 
     public static void onGameStarted()
@@ -76,7 +89,7 @@ public class CarpetServer // static for now - easier to handle all around the co
         settingsManager = new SettingsManager(CarpetSettings.carpetVersion, "carpet", "Carpet Mod");
         settingsManager.parseSettingsClass(CarpetSettings.class);
         extensions.forEach(CarpetExtension::onGameStarted);
-        FabricAPIHooks.initialize();
+//        FabricAPIHooks.initialize();
         CarpetScriptServer.parseFunctionClasses();
     }
 
@@ -95,7 +108,7 @@ public class CarpetServer // static for now - easier to handle all around the co
         scriptServer = new CarpetScriptServer(server);
         MobAI.resetTrackers();
         LoggerRegistry.initLoggers();
-        //TickSpeed.reset();
+        TickSpeed.reset();
     }
 
     public static void onServerLoadedWorlds(MinecraftServer minecraftServer)
@@ -115,10 +128,6 @@ public class CarpetServer // static for now - easier to handle all around the co
         CarpetSettings.impendingFillSkipUpdates.set(false);
 
         extensions.forEach(e -> e.onTick(server));
-    }
-
-    @Deprecated
-    public static void registerCarpetCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
     }
 
     public static void registerCarpetCommands(CommandDispatcher<CommandSourceStack> dispatcher, Commands.CommandSelection environment)
@@ -152,8 +161,8 @@ public class CarpetServer // static for now - easier to handle all around the co
 
         if (environment != Commands.CommandSelection.DEDICATED)
             PerfCommand.register(dispatcher);
-        
-        if (FabricLoader.getInstance().isDevelopmentEnvironment())
+
+        if (!FMLEnvironment.production)
             TestCommand.register(dispatcher);
         // todo 1.16 - re-registerer apps if that's a reload operation.
     }
@@ -216,4 +225,3 @@ public class CarpetServer // static for now - easier to handle all around the co
         extensions.forEach(e -> e.onReload(server));
     }
 }
-

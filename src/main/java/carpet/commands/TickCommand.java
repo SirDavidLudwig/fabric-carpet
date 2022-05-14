@@ -27,6 +27,7 @@ public class TickCommand
 {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher)
     {
+        System.out.println("Registering tick command...");
         LiteralArgumentBuilder<CommandSourceStack> literalargumentbuilder = literal("tick").
                 requires((player) -> SettingsManager.canUseCommand(player, CarpetSettings.commandTick)).
                 then(literal("rate").
@@ -48,7 +49,7 @@ public class TickCommand
                         then(literal("status").executes( (c) -> freezeStatus(c.getSource()))).
                         then(literal("deep").executes( (c) -> toggleFreeze(c.getSource(), true))).
                         then(literal("on").executes( (c) -> setFreeze(c.getSource(), false, true)).
-                            then(literal("deep").executes( (c)-> setFreeze(c.getSource(), true, true)))).
+                                then(literal("deep").executes( (c)-> setFreeze(c.getSource(), true, true)))).
                         then(literal("off").executes( (c) -> setFreeze(c.getSource(), false, false)))).
                 then(literal("step").
                         executes((c) -> step(c.getSource(), 1)).
